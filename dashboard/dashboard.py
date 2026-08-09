@@ -257,7 +257,13 @@ def index() -> rx.Component:
                         width="100%",
                         wrap="wrap",
                     ),
-                    bar_chart("Primii 10 beneficiari după valoare (mil. lei)", State.top_beneficiaries),
+                    rx.hstack(
+                        bar_chart(
+                            "Primii 10 beneficiari după valoare (mil. lei)",
+                            State.top_beneficiaries,
+                        ),
+                        width="100%",
+                    ),
                     table(),
                     spacing="4",
                     width="100%",

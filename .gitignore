@@ -1,0 +1,21 @@
+# Datele descărcate și cele derivate nu intră în git.
+# `data/raw/` este dovada: se reconstruiește cu `registru fetch`, nu se versionează.
+data/
+!data/.gitkeep
+
+# Reflex — `reflex.lock/` se versionează, restul se generează
+.web
+.states
+*.db
+assets/external/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# macOS
+.DS_Store

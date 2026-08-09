@@ -1,0 +1,283 @@
+"""Tabloul de bord: caută în registru, filtrează, vezi agregatele.
+
+uv run --extra dashboard reflex run
+"""
+
+from __future__ import annotations
+
+import reflex as rx
+
+from dashboard.state import ALL, Bucket, Project, State
+
+ACCENT = "iris"
+
+
+def kpi(label: str, value: rx.Var | str, hint: str = "") -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.text(label, size="1", color_scheme="gray", weight="medium"),
+            rx.heading(value, size="6"),
+            rx.text(hint, size="1", color_scheme="gray") if hint else rx.fragment(),
+            spacing="1",
+            align="start",
+        ),
+        size="2",
+        flex="1",
+        min_width="10rem",
+    )
+
+
+def filters() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.hstack(
+                rx.input(
+                    placeholder="Caută beneficiar, titlu de proiect sau CUI…",
+                    value=State.search,
+                    on_change=State.set_search,
+                    width="100%",
+                ),
+                rx.select(
+                    State.programs,
+                    value=State.program,
+                    on_change=State.set_program,
+                    placeholder="Program",
+                    width="12rem",
+                ),
+                rx.select(
+                    State.counties,
+                    value=State.county,
+                    on_change=State.set_county,
+                    placeholder="Județ",
+                    width="12rem",
+                ),
+                width="100%",
+                spacing="3",
+                wrap="wrap",
+            ),
+            rx.hstack(
+                rx.hstack(
+                    rx.switch(
+                        checked=State.only_software,
+                        on_change=State.toggle_software,
+                        color_scheme=ACCENT,
+                    ),
+                    rx.text("Doar proiecte software", size="2"),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.input(
+                    placeholder="Valoare eligibilă minimă",
+                    value=State.min_amount,
+                    on_change=State.set_min_amount,
+                    width="14rem",
+                ),
+                rx.select(
+                    [
+                        "total_eligible_amount",
+                        "eu_amount",
+                        "software_score",
+                        "start_date",
+                    ],
+                    value=State.sort_by,
+                    on_change=State.set_sort,
+                    width="14rem",
+                ),
+                rx.button(
+                    "Șterge filtrele",
+                    on_click=State.reset_filters,
+                    variant="soft",
+                    color_scheme="gray",
+                ),
+                spacing="3",
+                align="center",
+                wrap="wrap",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        width="100%",
+    )
+
+
+def bar_chart(title: str, data: rx.Var[list[Bucket]]) -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.text(title, weight="bold", size="2"),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(data_key="value", fill=rx.color(ACCENT, 9), radius=[4, 4, 0, 0]),
+                rx.recharts.x_axis(data_key="name", hide=False, font_size="10px"),
+                rx.recharts.y_axis(width=56, font_size="10px"),
+                rx.recharts.graphing_tooltip(),
+                data=data,
+                height=260,
+                width="100%",
+            ),
+            spacing="2",
+            width="100%",
+        ),
+        flex="1",
+        min_width="22rem",
+    )
+
+
+def row(project: Project) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(rx.badge(project.program, color_scheme="gray", variant="soft")),
+        rx.table.cell(
+            rx.vstack(
+                rx.text(project.beneficiary_name, weight="medium", size="2"),
+                rx.text(project.beneficiary_cui, size="1", color_scheme="gray"),
+                spacing="0",
+                align="start",
+            )
+        ),
+        rx.table.cell(rx.text(project.project_title, size="2")),
+        rx.table.cell(rx.text(project.county, size="2")),
+        rx.table.cell(rx.text(project.total_eligible_amount, size="2", align="right")),
+        rx.table.cell(rx.text(project.eu_amount, size="2", align="right")),
+        rx.table.cell(
+            rx.hstack(
+                rx.badge(
+                    project.software_label,
+                    color_scheme=rx.cond(project.is_software, ACCENT, "gray"),
+                    variant="soft",
+                ),
+                rx.text(project.software_score, size="1", color_scheme="gray"),
+                spacing="2",
+                align="center",
+            )
+        ),
+        rx.table.cell(
+            rx.link(
+                rx.icon("external-link", size=14),
+                href=project.source_url,
+                is_external=True,
+                color_scheme="gray",
+            )
+        ),
+    )
+
+
+def table() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.table.root(
+                rx.table.header(
+                    rx.table.row(
+                        rx.table.column_header_cell("Program"),
+                        rx.table.column_header_cell("Beneficiar"),
+                        rx.table.column_header_cell("Proiect"),
+                        rx.table.column_header_cell("Județ"),
+                        rx.table.column_header_cell("Eligibil"),
+                        rx.table.column_header_cell("Din care UE"),
+                        rx.table.column_header_cell("Clasificare"),
+                        rx.table.column_header_cell("Sursă"),
+                    )
+                ),
+                rx.table.body(rx.foreach(State.rows, row)),
+                variant="surface",
+                size="1",
+                width="100%",
+            ),
+            rx.hstack(
+                rx.button("‹ Înapoi", on_click=State.prev_page, variant="soft", size="2"),
+                rx.text(State.page_label, size="2", color_scheme="gray"),
+                rx.button("Înainte ›", on_click=State.next_page, variant="soft", size="2"),
+                spacing="3",
+                align="center",
+                justify="center",
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        width="100%",
+        overflow_x="auto",
+    )
+
+
+def empty_state() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.heading("Registrul nu este construit încă", size="5"),
+            rx.text("Rulează, în rădăcina depozitului:", size="2", color_scheme="gray"),
+            rx.code_block(
+                "uv run registru fetch datagovro --limit 6\n"
+                "uv run registru extract\n"
+                "uv run registru build",
+                language="bash",
+                width="100%",
+            ),
+            spacing="3",
+            align="start",
+        ),
+        width="100%",
+    )
+
+
+@rx.page(title="Registru fonduri UE — România")
+def index() -> rx.Component:
+    return rx.container(
+        rx.vstack(
+            rx.hstack(
+                rx.vstack(
+                    rx.heading("Registru fonduri UE", size="7"),
+                    rx.text(
+                        "Proiecte cu finanțare europeană în România, cu accent pe software.",
+                        color_scheme="gray",
+                        size="2",
+                    ),
+                    spacing="1",
+                    align="start",
+                ),
+                rx.spacer(),
+                rx.color_mode.button(),
+                width="100%",
+                align="center",
+            ),
+            rx.cond(
+                State.has_registry,
+                rx.vstack(
+                    rx.hstack(
+                        kpi("Proiecte", State.total_rows_label),
+                        kpi("Beneficiari", State.beneficiary_count_label),
+                        kpi("Valoare eligibilă", State.total_amount_label),
+                        kpi("Din care UE", State.eu_amount_label),
+                        kpi("Cotă software", State.software_share_label),
+                        spacing="3",
+                        width="100%",
+                        wrap="wrap",
+                    ),
+                    filters(),
+                    rx.hstack(
+                        bar_chart("Valoare eligibilă pe program (mil. lei)", State.by_program),
+                        bar_chart("Proiecte pe clasificare", State.by_label),
+                        spacing="3",
+                        width="100%",
+                        wrap="wrap",
+                    ),
+                    bar_chart("Primii 10 beneficiari după valoare (mil. lei)", State.top_beneficiaries),
+                    table(),
+                    spacing="4",
+                    width="100%",
+                ),
+                empty_state(),
+            ),
+            rx.text(
+                "Sursele: data.gov.ro (OGL-ROU-1.0) și Kohesio. "
+                f"Fără filtru = {ALL}. Fiecare rând are legătura către fișierul original.",
+                size="1",
+                color_scheme="gray",
+            ),
+            spacing="4",
+            width="100%",
+            padding_y="2rem",
+        ),
+        size="4",
+        max_width="1400px",
+    )
+
+
+# Tema stă în `rxconfig.py`, prin `RadixThemesPlugin`; `rx.App(theme=...)` este scos în 1.0.
+app = rx.App()

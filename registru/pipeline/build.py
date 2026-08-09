@@ -12,6 +12,7 @@ import polars as pl
 
 from registru.config import INTERIM_DIR, REGISTRY_DUCKDB, REGISTRY_PARQUET, ensure_dirs
 from registru.pipeline.classify import classify
+from registru.pipeline.normalize import normalize_geo
 from registru.schema import REGISTRY_COLUMNS, conform, empty_frame
 from registru.text import normalize_company
 
@@ -84,6 +85,7 @@ def build(source_ids: list[str] | None = None) -> pl.DataFrame:
     frame = read_interim(source_ids)
     frame = add_identity(frame)
     frame = deduplicate(frame)
+    frame = normalize_geo(frame)
     frame = classify(frame)
     ordered = [*REGISTRY_COLUMNS, "beneficiary_key"]
     frame = frame.select([column for column in ordered if column in frame.columns])

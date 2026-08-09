@@ -62,6 +62,10 @@ PROVENANCE_FIELDS: dict[str, PolarsType] = {
 
 #: Câmpuri calculate de pipeline.
 DERIVED_FIELDS: dict[str, PolarsType] = {
+    # `county` și `region` sunt text liber în fișierele oficiale; acestea sunt
+    # variantele parsate pe lista închisă din `registru.geo`.
+    "counties": pl.List(pl.Utf8),
+    "regions": pl.List(pl.Utf8),
     "software_score": pl.Float64,
     "software_label": pl.Utf8,  # produs | digitalizare | infrastructura | cdi | necunoscut
     "software_evidence": pl.Utf8,  # de ce a primit scorul

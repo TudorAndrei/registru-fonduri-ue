@@ -16,21 +16,20 @@ import polars as pl
 import reflex as rx
 
 from registru.config import REGISTRY_PARQUET
+from registru.geo import COUNTY_NAMES, NATIONAL, REGIONS
 
 PAGE_SIZE = 25
 ALL = "toate"
 
-DISPLAY_COLUMNS = [
-    "program",
-    "beneficiary_name",
-    "beneficiary_cui",
-    "project_title",
-    "county",
-    "total_eligible_amount",
-    "eu_amount",
-    "software_score",
-    "software_label",
-]
+#: Ce se poate ordona, cu numele pe care îl vede omul. Numele coloanei din
+#: registru nu are ce căuta într-un meniu.
+SORT_COLUMNS: dict[str, str] = {
+    "Valoare eligibilă": "total_eligible_amount",
+    "Plăți efectuate": "payments_amount",
+    "Scor software": "software_score",
+    "Data de început": "start_date",
+}
+SORT_OPTIONS: list[str] = list(SORT_COLUMNS)
 
 
 @dataclasses.dataclass
@@ -47,7 +46,7 @@ class Project:
     project_title: str = ""
     county: str = ""
     total_eligible_amount: str = ""
-    eu_amount: str = ""
+    payments: str = ""
     software_score: str = ""
     software_label: str = ""
     is_software: bool = False
@@ -78,6 +77,8 @@ class State(rx.State):
     search: str = ""
     program: str = ALL
     county: str = ALL
+    region: str = ALL
+    label: str = ALL
     only_software: bool = False
     min_amount: str = ""
     page: int = 0
@@ -94,7 +95,13 @@ class State(rx.State):
         if self.program != ALL:
             frame = frame.filter(pl.col("program") == self.program)
         if self.county != ALL:
-            frame = frame.filter(pl.col("county") == self.county)
+            # `counties` este o listă parsată: un proiect multi-județean apare
+            # sub fiecare județ al lui.
+            frame = frame.filter(pl.col("counties").list.contains(self.county))
+        if self.region != ALL:
+            frame = frame.filter(pl.col("regions").list.contains(self.region))
+        if self.label != ALL:
+            frame = frame.filter(pl.col("software_label") == self.label)
         if self.search.strip():
             needle = self.search.strip()
             frame = frame.filter(
@@ -132,11 +139,17 @@ class State(rx.State):
         return _money(frame["total_eligible_amount"].sum())
 
     @rx.var(cache=True)
-    def eu_amount_label(self) -> str:
+    def payments_label(self) -> str:
+        """Plăți efectuate, nu contribuția UE.
+
+        Coloana `eu_amount` este populată în 0% din rândurile naționale — listele
+        MIPE nu o publică. `payments_amount` acoperă 86% și spune același lucru
+        util: cât a ajuns efectiv la beneficiar.
+        """
         frame = self._filtered()
         if frame.is_empty():
             return "—"
-        return _money(frame["eu_amount"].sum())
+        return _money(frame["payments_amount"].sum())
 
     @rx.var(cache=True)
     def beneficiary_count_label(self) -> str:
@@ -161,7 +174,27 @@ class State(rx.State):
 
     @rx.var(cache=True)
     def counties(self) -> list[str]:
-        return [ALL, *_distinct(load_registry(), "county")]
+        """Lista închisă a județelor, nu valorile distincte din fișier.
+
+        Coloana `county` conține text liber — 1.410 valori distincte pentru 42 de
+        județe — deci un `unique()` peste ea dă un filtru de necitit.
+        """
+        return [ALL, NATIONAL, *COUNTY_NAMES]
+
+    @rx.var(cache=True)
+    def regions(self) -> list[str]:
+        return [ALL, *REGIONS]
+
+    @rx.var(cache=True)
+    def sort_label(self) -> str:
+        for label, column in SORT_COLUMNS.items():
+            if column == self.sort_by:
+                return label
+        return SORT_OPTIONS[0]
+
+    @rx.var(cache=True)
+    def labels(self) -> list[str]:
+        return [ALL, *_distinct(load_registry(), "software_label")]
 
     @rx.var(cache=True)
     def page_count(self) -> int:
@@ -190,9 +223,9 @@ class State(rx.State):
                     beneficiary_name=_shorten(row.get("beneficiary_name"), 70),
                     beneficiary_cui=str(row.get("beneficiary_cui") or "—"),
                     project_title=_shorten(row.get("project_title")),
-                    county=str(row.get("county") or "—"),
+                    county=_shorten(", ".join(row.get("counties") or []), 34),
                     total_eligible_amount=_money(row.get("total_eligible_amount")),
-                    eu_amount=_money(row.get("eu_amount")),
+                    payments=_money(row.get("payments_amount")),
                     software_score=f"{row.get('software_score') or 0:.2f}",
                     software_label=str(row.get("software_label") or "—"),
                     is_software=bool(row.get("is_software")),
@@ -240,6 +273,16 @@ class State(rx.State):
         self.page = 0
 
     @rx.event
+    def set_region(self, value: str) -> None:
+        self.region = value
+        self.page = 0
+
+    @rx.event
+    def set_label(self, value: str) -> None:
+        self.label = value
+        self.page = 0
+
+    @rx.event
     def set_min_amount(self, value: str) -> None:
         self.min_amount = value
         self.page = 0
@@ -251,7 +294,7 @@ class State(rx.State):
 
     @rx.event
     def set_sort(self, value: str) -> None:
-        self.sort_by = value
+        self.sort_by = SORT_COLUMNS.get(value, "total_eligible_amount")
         self.page = 0
 
     @rx.event
@@ -268,8 +311,11 @@ class State(rx.State):
         self.search = ""
         self.program = ALL
         self.county = ALL
+        self.region = ALL
+        self.label = ALL
         self.min_amount = ""
         self.only_software = False
+        self.sort_by = SORT_COLUMNS[SORT_OPTIONS[0]]
         self.page = 0
 
 

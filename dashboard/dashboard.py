@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import reflex as rx
 
-from dashboard.state import ALL, Bucket, Project, State
+from dashboard.state import ALL, SORT_OPTIONS, Bucket, Project, State
 
 ACCENT = "iris"
 
@@ -27,32 +27,93 @@ def kpi(label: str, value: rx.Var | str, hint: str = "") -> rx.Component:
     )
 
 
+def field(label: str, control: rx.Component, width: str = "12rem") -> rx.Component:
+    """Un control cu titlul lui deasupra.
+
+    Patru selectoare identice, toate pe „toate”, nu spun ce filtrează.
+    """
+    return rx.vstack(
+        rx.text(label, size="1", color_scheme="gray", weight="medium"),
+        control,
+        spacing="1",
+        align="start",
+        width=width,
+    )
+
+
 def filters() -> rx.Component:
     return rx.card(
         rx.vstack(
-            rx.hstack(
+            field(
+                "Căutare",
                 rx.input(
-                    placeholder="Caută beneficiar, titlu de proiect sau CUI…",
+                    placeholder="Beneficiar, titlu de proiect sau CUI…",
                     value=State.search,
                     on_change=State.set_search,
                     width="100%",
                 ),
-                rx.select(
-                    State.programs,
-                    value=State.program,
-                    on_change=State.set_program,
-                    placeholder="Program",
-                    width="12rem",
+                width="100%",
+            ),
+            rx.hstack(
+                field(
+                    "Program",
+                    rx.select(
+                        State.programs,
+                        value=State.program,
+                        on_change=State.set_program,
+                        width="100%",
+                    ),
                 ),
-                rx.select(
-                    State.counties,
-                    value=State.county,
-                    on_change=State.set_county,
-                    placeholder="Județ",
-                    width="12rem",
+                field(
+                    "Regiune de dezvoltare",
+                    rx.select(
+                        State.regions,
+                        value=State.region,
+                        on_change=State.set_region,
+                        width="100%",
+                    ),
+                ),
+                field(
+                    "Județ",
+                    rx.select(
+                        State.counties,
+                        value=State.county,
+                        on_change=State.set_county,
+                        width="100%",
+                    ),
+                ),
+                field(
+                    "Clasificare",
+                    rx.select(
+                        State.labels,
+                        value=State.label,
+                        on_change=State.set_label,
+                        width="100%",
+                    ),
+                ),
+                field(
+                    "Valoare eligibilă minimă (lei)",
+                    rx.input(
+                        placeholder="ex. 1000000",
+                        value=State.min_amount,
+                        on_change=State.set_min_amount,
+                        width="100%",
+                    ),
+                    width="14rem",
+                ),
+                field(
+                    "Ordonare după",
+                    rx.select(
+                        SORT_OPTIONS,
+                        value=State.sort_label,
+                        on_change=State.set_sort,
+                        width="100%",
+                    ),
+                    width="14rem",
                 ),
                 width="100%",
                 spacing="3",
+                align="end",
                 wrap="wrap",
             ),
             rx.hstack(
@@ -66,30 +127,13 @@ def filters() -> rx.Component:
                     spacing="2",
                     align="center",
                 ),
-                rx.input(
-                    placeholder="Valoare eligibilă minimă",
-                    value=State.min_amount,
-                    on_change=State.set_min_amount,
-                    width="14rem",
-                ),
-                rx.select(
-                    [
-                        "total_eligible_amount",
-                        "eu_amount",
-                        "software_score",
-                        "start_date",
-                    ],
-                    value=State.sort_by,
-                    on_change=State.set_sort,
-                    width="14rem",
-                ),
                 rx.button(
                     "Șterge filtrele",
                     on_click=State.reset_filters,
                     variant="soft",
                     color_scheme="gray",
                 ),
-                spacing="3",
+                spacing="4",
                 align="center",
                 wrap="wrap",
             ),
@@ -135,7 +179,7 @@ def row(project: Project) -> rx.Component:
         rx.table.cell(rx.text(project.project_title, size="2")),
         rx.table.cell(rx.text(project.county, size="2")),
         rx.table.cell(rx.text(project.total_eligible_amount, size="2", align="right")),
-        rx.table.cell(rx.text(project.eu_amount, size="2", align="right")),
+        rx.table.cell(rx.text(project.payments, size="2", align="right")),
         rx.table.cell(
             rx.hstack(
                 rx.badge(
@@ -170,7 +214,7 @@ def table() -> rx.Component:
                         rx.table.column_header_cell("Proiect"),
                         rx.table.column_header_cell("Județ"),
                         rx.table.column_header_cell("Eligibil"),
-                        rx.table.column_header_cell("Din care UE"),
+                        rx.table.column_header_cell("Plătit"),
                         rx.table.column_header_cell("Clasificare"),
                         rx.table.column_header_cell("Sursă"),
                     )
@@ -243,7 +287,7 @@ def index() -> rx.Component:
                         kpi("Proiecte", State.total_rows_label),
                         kpi("Beneficiari", State.beneficiary_count_label),
                         kpi("Valoare eligibilă", State.total_amount_label),
-                        kpi("Din care UE", State.eu_amount_label),
+                        kpi("Plăți către beneficiari", State.payments_label),
                         kpi("Cotă software", State.software_share_label),
                         spacing="3",
                         width="100%",

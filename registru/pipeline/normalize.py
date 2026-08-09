@@ -9,6 +9,15 @@ from __future__ import annotations
 import polars as pl
 
 from registru.geo import parse_counties, parse_regions, regions_for
+from registru.status import normalize_status
+
+
+def normalize_status_column(frame: pl.DataFrame) -> pl.DataFrame:
+    """Adaugă `status`, coloana brută `project_status` rămâne neatinsă."""
+    if frame.height == 0 or "project_status" not in frame.columns:
+        return frame
+    values = [normalize_status(value) for value in frame["project_status"].to_list()]
+    return frame.with_columns(pl.Series("status", values, dtype=pl.Utf8))
 
 
 def normalize_geo(frame: pl.DataFrame) -> pl.DataFrame:

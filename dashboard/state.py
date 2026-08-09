@@ -17,6 +17,7 @@ import reflex as rx
 
 from registru.config import REGISTRY_PARQUET
 from registru.geo import COUNTY_NAMES, NATIONAL, REGIONS
+from registru.status import STATUSES
 
 PAGE_SIZE = 25
 ALL = "toate"
@@ -30,6 +31,18 @@ SORT_COLUMNS: dict[str, str] = {
     "Data de început": "start_date",
 }
 SORT_OPTIONS: list[str] = list(SORT_COLUMNS)
+
+#: Culoarea insignei de stadiu. Verde înseamnă „a ieșit”, roșu „nu a ieșit”.
+STATUS_COLORS: dict[str, str] = {
+    "Finalizat": "green",
+    "În implementare": "blue",
+    "Etapizat": "amber",
+    "Nefinalizat": "orange",
+    "În reziliere": "orange",
+    "Reziliat": "red",
+    "Suspendat": "red",
+    "Nefuncțional": "red",
+}
 
 
 @dataclasses.dataclass
@@ -50,6 +63,8 @@ class Project:
     software_score: str = ""
     software_label: str = ""
     is_software: bool = False
+    status: str = ""
+    status_color: str = "gray"
     source_url: str = ""
 
 
@@ -79,6 +94,7 @@ class State(rx.State):
     county: str = ALL
     region: str = ALL
     label: str = ALL
+    status: str = ALL
     only_software: bool = False
     min_amount: str = ""
     page: int = 0
@@ -102,6 +118,8 @@ class State(rx.State):
             frame = frame.filter(pl.col("regions").list.contains(self.region))
         if self.label != ALL:
             frame = frame.filter(pl.col("software_label") == self.label)
+        if self.status != ALL:
+            frame = frame.filter(pl.col("status") == self.status)
         if self.search.strip():
             needle = self.search.strip()
             frame = frame.filter(
@@ -186,6 +204,11 @@ class State(rx.State):
         return [ALL, *REGIONS]
 
     @rx.var(cache=True)
+    def statuses(self) -> list[str]:
+        """Lista închisă a stadiilor: 44 de scrieri distincte, șase stări reale."""
+        return [ALL, *STATUSES]
+
+    @rx.var(cache=True)
     def sort_label(self) -> str:
         for label, column in SORT_COLUMNS.items():
             if column == self.sort_by:
@@ -229,6 +252,8 @@ class State(rx.State):
                     software_score=f"{row.get('software_score') or 0:.2f}",
                     software_label=str(row.get("software_label") or "—"),
                     is_software=bool(row.get("is_software")),
+                    status=str(row.get("status") or "—"),
+                    status_color=STATUS_COLORS.get(str(row.get("status") or ""), "gray"),
                     source_url=str(row.get("source_url") or ""),
                 )
             )
@@ -283,6 +308,11 @@ class State(rx.State):
         self.page = 0
 
     @rx.event
+    def set_status(self, value: str) -> None:
+        self.status = value
+        self.page = 0
+
+    @rx.event
     def set_min_amount(self, value: str) -> None:
         self.min_amount = value
         self.page = 0
@@ -313,6 +343,7 @@ class State(rx.State):
         self.county = ALL
         self.region = ALL
         self.label = ALL
+        self.status = ALL
         self.min_amount = ""
         self.only_software = False
         self.sort_by = SORT_COLUMNS[SORT_OPTIONS[0]]

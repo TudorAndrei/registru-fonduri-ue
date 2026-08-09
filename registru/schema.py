@@ -64,6 +64,7 @@ PROVENANCE_FIELDS: dict[str, PolarsType] = {
 DERIVED_FIELDS: dict[str, PolarsType] = {
     # `county` și `region` sunt text liber în fișierele oficiale; acestea sunt
     # variantele parsate pe lista închisă din `registru.geo`.
+    "status": pl.Utf8,  # `project_status` adus la lista din `registru.status`
     "counties": pl.List(pl.Utf8),
     "regions": pl.List(pl.Utf8),
     "software_score": pl.Float64,

@@ -92,6 +92,15 @@ def filters() -> rx.Component:
                     ),
                 ),
                 field(
+                    "Stadiu",
+                    rx.select(
+                        State.statuses,
+                        value=State.status,
+                        on_change=State.set_status,
+                        width="100%",
+                    ),
+                ),
+                field(
                     "Valoare eligibilă minimă (lei)",
                     rx.input(
                         placeholder="ex. 1000000",
@@ -181,6 +190,15 @@ def row(project: Project) -> rx.Component:
         rx.table.cell(rx.text(project.total_eligible_amount, size="2", align="right")),
         rx.table.cell(rx.text(project.payments, size="2", align="right")),
         rx.table.cell(
+            # Reflex tipează `color_scheme` ca literal, deși acceptă un Var la
+            # rulare; culoarea vine din stare, deci verificatorul nu o poate ști.
+            rx.badge(
+                project.status,
+                color_scheme=project.status_color,  # ty: ignore[invalid-argument-type]
+                variant="soft",
+            )
+        ),
+        rx.table.cell(
             rx.hstack(
                 rx.badge(
                     project.software_label,
@@ -193,11 +211,11 @@ def row(project: Project) -> rx.Component:
             )
         ),
         rx.table.cell(
+            # Către fișa din registru, nu către fișierul Excel: nimeni nu vrea
+            # să descarce 900 KB de tabel ca să vadă un rând.
             rx.link(
-                rx.icon("external-link", size=14),
-                href=project.source_url,
-                is_external=True,
-                color_scheme="gray",
+                rx.button("Deschide", size="1", variant="soft"),
+                href=f"/proiect/{project.record_id}",
             )
         ),
     )
@@ -215,8 +233,9 @@ def table() -> rx.Component:
                         rx.table.column_header_cell("Județ"),
                         rx.table.column_header_cell("Eligibil"),
                         rx.table.column_header_cell("Plătit"),
+                        rx.table.column_header_cell("Stadiu"),
                         rx.table.column_header_cell("Clasificare"),
-                        rx.table.column_header_cell("Sursă"),
+                        rx.table.column_header_cell("Fișă"),
                     )
                 ),
                 rx.table.body(rx.foreach(State.rows, row)),
@@ -330,4 +349,7 @@ def index() -> rx.Component:
 
 
 # Tema stă în `rxconfig.py`, prin `RadixThemesPlugin`; `rx.App(theme=...)` este scos în 1.0.
+# Importul înregistrează ruta /proiect/[record_id] prin decoratorul @rx.page.
+import dashboard.project  # noqa: E402, F401
+
 app = rx.App()

@@ -55,12 +55,15 @@ uv run reflex run          # http://localhost:3000
 | `oportunitati` | [oportunitati-ue.gov.ro](https://oportunitati-ue.gov.ro/apeluri/), API WordPress | **Apelurile de finanțare**, cu termen, buget și eligibilitate | date publice |
 | `datagovro` | [data.gov.ro](https://data.gov.ro/dataset/proiecte-contractate), API CKAN | Liste proiecte contractate 2014-2020 (POIM, POC, POCU, POR, POCA, POAT), trimestrial | OGL-ROU-1.0 |
 | `kohesio` | [Kohesio](https://kohesio.ec.europa.eu/), API REST | Descrieri și coordonate geografice, toate statele | CC BY 4.0 |
+| `fondurieue` | [fonduri-ue.ro](https://www.fonduri-ue.ro/), prin [arhiva Wayback](https://web.archive.org/) | Liste istorice POIM/POCU/POC, în PDF și XLSX, cu **contribuția UE** | date publice |
 
 Note de acces, verificate în august 2026:
 
 - **Kohesio**: parametrul este `countryCode`; `country=RO` întoarce HTTP 400.
 - **oportunitati-ue.gov.ro**: un WAF respinge clienții fără antete de navigator, inclusiv pe `robots.txt`. Cu antete normale, API-ul REST răspunde. Bugetul și calendarul stau în câmpuri ACF neexpuse prin API, deci se citesc din pagina fiecărui apel — o dată, apoi doar ce s-a schimbat.
-- **fonduri-ue.ro**: `robots.txt` permite colectarea (`User-agent: * / Allow: /`), dar un challenge Cloudflare blochează orice client automat, inclusiv un browser fără interfață. Nu este integrat. Calea curată este arhiva Wayback, care are listele istorice și nu blochează pe nimeni.
+- **fonduri-ue.ro**: `robots.txt` permite colectarea (`User-agent: * / Allow: /`), dar un challenge Cloudflare blochează orice client automat, inclusiv un browser fără interfață. Adaptorul citește deci din **arhiva Internet Archive**, care are aceleași fișiere, nu blochează pe nimeni, și în plus păstrează instantanee la date diferite. Descoperirea se face cu un apel la API-ul CDX; descărcarea, cu biblioteca [`wayback`](https://pypi.org/project/wayback/). Ce nu este arhivat se poate pune de mână în `data/raw/fondurieue/manual/`.
+
+  PDF-urile de acolo publică `Fonduri UE`, coloana pe care fișierele Excel o lasă goală: acoperirea contribuției UE a urcat de la 15 rânduri la 2.621.
 
 Următorul adaptor de scris este cel pentru listele operațiunilor 2021-2027, publicate pe site-urile Autorităților de Management. Acolo este efortul real și, în același timp, valoarea.
 

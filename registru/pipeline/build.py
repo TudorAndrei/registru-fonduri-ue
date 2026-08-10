@@ -73,11 +73,31 @@ def add_identity(frame: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def deduplicate(frame: pl.DataFrame) -> pl.DataFrame:
-    """Același proiect apare în publicări succesive ale aceleiași liste.
+#: Câmpuri pe care o sursă le publică și alta nu. Înainte de deduplicare se
+#: completează între ele, altfel rândul care supraviețuiește pierde ce știa
+#: celălalt — de exemplu `Fonduri UE`, publicat doar în PDF-urile de pe
+#: fonduri-ue.ro, niciodată în fișierele Excel de pe data.gov.ro.
+MERGED_FIELDS = (
+    "eu_amount",
+    "payments_amount",
+    "total_project_amount",
+    "total_eligible_amount",
+    "beneficiary_cui",
+    "project_summary",
+    "intervention_code",
+    "county",
+    "region",
+)
 
-    Se păstrează rândul cel mai recent descărcat pentru fiecare
-    (program, cod proiect, beneficiar).
+DEDUP_KEY = ["program", "_dedup_code", "beneficiary_key"]
+
+
+def deduplicate(frame: pl.DataFrame) -> pl.DataFrame:
+    """Același proiect apare în publicări succesive și în surse diferite.
+
+    Rândurile se combină întâi și abia apoi se reduc la unul singur, ca să nu
+    se piardă câmpurile pe care doar una dintre surse le publică. Se păstrează
+    cea mai recentă publicare pentru fiecare (program, cod proiect, beneficiar).
     """
     if frame.height == 0:
         return frame
@@ -88,9 +108,18 @@ def deduplicate(frame: pl.DataFrame) -> pl.DataFrame:
             pl.col("record_id"),
         ).alias("_dedup_code")
     )
+    fills = [
+        pl.coalesce(pl.col(column), pl.col(column).drop_nulls().first().over(DEDUP_KEY)).alias(
+            column
+        )
+        for column in MERGED_FIELDS
+        if column in keyed.columns
+    ]
+    if fills:
+        keyed = keyed.with_columns(fills)
     return (
         keyed.sort("fetched_at", descending=True)
-        .unique(subset=["program", "_dedup_code", "beneficiary_key"], keep="first")
+        .unique(subset=DEDUP_KEY, keep="first")
         .drop("_dedup_code")
     )
 

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from registru.sources.base import FetchedFile, Source
 from registru.sources.datagovro import DataGovRo
+from registru.sources.fondurieue import FonduriUe
 from registru.sources.kohesio import Kohesio
 from registru.sources.oportunitati import Oportunitati
 
 SOURCES: dict[str, type] = {
     DataGovRo.id: DataGovRo,
+    FonduriUe.id: FonduriUe,
     Kohesio.id: Kohesio,
     Oportunitati.id: Oportunitati,
 }
@@ -30,6 +32,7 @@ def sources_of_kind(kind: str) -> list[str]:
 __all__ = [
     "SOURCES",
     "DataGovRo",
+    "FonduriUe",
     "FetchedFile",
     "Kohesio",
     "Oportunitati",

@@ -37,6 +37,7 @@ _TAGS = re.compile(r"<[^>]+>")
 
 class Kohesio:
     id = "kohesio"
+    kind = "project"
     name = "Kohesio (Comisia Europeană)"
 
     def __init__(self, country: str = "RO") -> None:

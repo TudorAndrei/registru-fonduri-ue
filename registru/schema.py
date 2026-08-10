@@ -84,6 +84,48 @@ REGISTRY_SCHEMA: dict[str, PolarsType] = {
 
 REGISTRY_COLUMNS: list[str] = list(REGISTRY_SCHEMA)
 
+#: Apelurile de finanțare sunt altă entitate decât proiectele: un apel este o
+#: oportunitate deschisă, un proiect este un contract semnat. Nu se amestecă.
+CALLS_SCHEMA: dict[str, PolarsType] = {
+    "call_id": pl.Utf8,
+    "title": pl.Utf8,
+    "url": pl.Utf8,  # pagina apelului
+    "external_url": pl.Utf8,  # linkul original, când apelul e al Comisiei
+    "programs": pl.List(pl.Utf8),
+    "specific_objective": pl.Utf8,
+    "call_type": pl.Utf8,
+    "call_types": pl.List(pl.Utf8),
+    "status": pl.Utf8,  # Activ | Urmează | Închis | Necunoscut
+    "opens_at": pl.Date,
+    "closes_at": pl.Date,
+    "continuous": pl.Boolean,  # depunere continuă, fără termen limită
+    "budget_amount": pl.Float64,
+    "budget_currency": pl.Utf8,
+    "beneficiaries": pl.List(pl.Utf8),
+    "domains": pl.List(pl.Utf8),
+    "geo_areas": pl.List(pl.Utf8),
+    "documents": pl.List(pl.Utf8),
+    "software_score": pl.Float64,
+    "software_label": pl.Utf8,
+    "software_evidence": pl.Utf8,
+    "is_software": pl.Boolean,
+    "published_at": pl.Utf8,
+    "modified_at": pl.Utf8,
+    "source": pl.Utf8,
+    "source_url": pl.Utf8,
+    "fetched_at": pl.Utf8,
+}
+
+CALLS_COLUMNS: list[str] = list(CALLS_SCHEMA)
+
+
+def empty_calls() -> pl.DataFrame:
+    return pl.DataFrame(schema=CALLS_SCHEMA)
+
+
+def conform_calls(df: pl.DataFrame) -> pl.DataFrame:
+    return _conform(df, CALLS_SCHEMA)
+
 
 def empty_frame() -> pl.DataFrame:
     """Un cadru gol cu schema completă, ca punct de plecare pentru concatenări."""
@@ -95,8 +137,12 @@ def conform(df: pl.DataFrame) -> pl.DataFrame:
 
     Un adaptor produce doar ce găsește în fișierul lui. Aici se aliniază.
     """
+    return _conform(df, REGISTRY_SCHEMA)
+
+
+def _conform(df: pl.DataFrame, schema: dict[str, PolarsType]) -> pl.DataFrame:
     exprs = []
-    for name, dtype in REGISTRY_SCHEMA.items():
+    for name, dtype in schema.items():
         if name in df.columns:
             exprs.append(pl.col(name).cast(dtype, strict=False).alias(name))
         else:

@@ -1,6 +1,11 @@
 # Registru fonduri UE — România
 
-Centralizator deschis al proiectelor cu finanțare europeană în România, cu accent pe proiectele de tip **software / digitalizare / IT**.
+**Ce finanțări europene mai poți lua în România**, și cine le-a luat până acum. Accent pe software, digitalizare și IT.
+
+Două registre, construite din același pipeline:
+
+- **Apeluri deschise** (`/`) — ce se mai poate depune, cu termen, buget și cine este eligibil. Sursa: oportunitati-ue.gov.ro.
+- **Proiecte finanțate** (`/proiecte`) — cine a luat bani și pentru ce. Util ca să vezi ce trece la evaluare. Sursele: data.gov.ro și Kohesio.
 
 Datele sunt publice, dar fragmentate: fiecare Autoritate de Management publică propria listă, în propriul format, pe propriul site. Depozitul acesta le adună, le aduce la o schemă comună, le clasifică și le face interogabile — cu SQL, cu CSV, sau cu un tablou de bord.
 
@@ -20,12 +25,21 @@ uv sync --extra dashboard
 
 ```bash
 uv run registru sources                       # ce adaptoare există
-uv run registru fetch datagovro --limit 6     # descarcă fișierele brute
-uv run registru extract                       # le aduce la schema canonică
-uv run registru build                         # deduplică, clasifică, scrie registrul
-uv run registru stats                         # sinteza
-uv run registru query "SELECT * FROM software LIMIT 10"
+uv run registru fetch                          # descarcă fișierele brute
+uv run registru extract                        # le aduce la schema canonică
+uv run registru build                          # deduplică, clasifică, scrie registrele
+uv run registru calls                          # apelurile deschise acum
+uv run registru stats                          # sinteza proiectelor
+uv run registru query "SELECT * FROM apeluri_active ORDER BY closes_at"
 uv run registru export software.csv --software
+```
+
+Rulare periodică, cu jurnal:
+
+```bash
+uv run registru schedule --once     # o rulare completă acum
+uv run registru schedule            # buclă: lunar, ziua 1 la 03:00 UTC
+uv run registru runs                # jurnalul rulărilor
 ```
 
 Tabloul de bord:
@@ -38,8 +52,15 @@ uv run reflex run          # http://localhost:3000
 
 | Adaptor | Sursă | Ce aduce | Licență |
 | --- | --- | --- | --- |
+| `oportunitati` | [oportunitati-ue.gov.ro](https://oportunitati-ue.gov.ro/apeluri/), API WordPress | **Apelurile de finanțare**, cu termen, buget și eligibilitate | date publice |
 | `datagovro` | [data.gov.ro](https://data.gov.ro/dataset/proiecte-contractate), API CKAN | Liste proiecte contractate 2014-2020 (POIM, POC, POCU, POR, POCA, POAT), trimestrial | OGL-ROU-1.0 |
 | `kohesio` | [Kohesio](https://kohesio.ec.europa.eu/), API REST | Descrieri și coordonate geografice, toate statele | CC BY 4.0 |
+
+Note de acces, verificate în august 2026:
+
+- **Kohesio**: parametrul este `countryCode`; `country=RO` întoarce HTTP 400.
+- **oportunitati-ue.gov.ro**: un WAF respinge clienții fără antete de navigator, inclusiv pe `robots.txt`. Cu antete normale, API-ul REST răspunde. Bugetul și calendarul stau în câmpuri ACF neexpuse prin API, deci se citesc din pagina fiecărui apel — o dată, apoi doar ce s-a schimbat.
+- **fonduri-ue.ro**: `robots.txt` permite colectarea (`User-agent: * / Allow: /`), dar un challenge Cloudflare blochează orice client automat, inclusiv un browser fără interfață. Nu este integrat. Calea curată este arhiva Wayback, care are listele istorice și nu blochează pe nimeni.
 
 Următorul adaptor de scris este cel pentru listele operațiunilor 2021-2027, publicate pe site-urile Autorităților de Management. Acolo este efortul real și, în același timp, valoarea.
 
@@ -87,3 +108,40 @@ uv run ty check
 ## Licență
 
 MIT pentru cod. Datele rămân sub licența sursei lor.
+
+
+## Desfășurare pe Coolify
+
+Două servicii, aceeași imagine, același volum. Comanda le diferențiază, nu imaginea — altfel ar putea ajunge pe versiuni de cod diferite fără să bage nimeni de seamă.
+
+```
+scheduler   -> registru schedule      aduce datele, reconstruiește registrele
+dashboard   -> reflex run --env prod  servește interfața, nu scrie nimic
+volum       -> /data                  fișiere descărcate, registre, jurnal
+```
+
+În Coolify: **New Resource → Docker Compose**, indică depozitul. Domeniul se pune pe serviciul `dashboard`, portul **3000**. În modul `prod`, Reflex servește interfața și partea de server pe același port, deci este un singur domeniu de configurat.
+
+Variabile de mediu:
+
+| Variabilă | Implicit | Ce face |
+| --- | --- | --- |
+| `REGISTRU_CRON` | `0 3 1 * *` | Când rulează pipeline-ul. Ziua 1 a lunii, 03:00 UTC. |
+| `REGISTRU_DATA_DIR` | `/data` | Unde stau datele. Trebuie să fie volum persistent. |
+| `REGISTRU_DETALII_APEL` | `6000` | Câte fișe de apel se descarcă la o rulare. |
+| `REGISTRU_FIRE` | `6` | Câte descărcări în paralel. Mic dinadins. |
+
+Prima pornire: containerul `scheduler` vede că nu există registru și rulează imediat, ca să nu aștepți până la 1 ale lunii ca să afli dacă merge. Prima rulare durează ~15 minute, aproape tot în descărcarea fișelor de apel; următoarele iau doar ce s-a schimbat.
+
+Fără Coolify:
+
+```bash
+docker compose up -d --build
+docker compose exec scheduler registru runs
+```
+
+## De ce lunar
+
+Listele naționale de proiecte se publică trimestrial. Apelurile se schimbă mai des, dar un termen de depunere se anunță cu săptămâni înainte, deci o rulare pe lună nu ratează nimic. Dacă vrei mai des, `REGISTRU_CRON="0 3 * * 1"` face o rulare în fiecare luni.
+
+Jurnalul rulărilor stă în `data/runs/`. Fiecare rulare notează ce a adus, cât a durat și ce a eșuat — o rulare care nu aduce nimic nou și una care crapă arată la fel din afară, dacă nimeni nu notează diferența.

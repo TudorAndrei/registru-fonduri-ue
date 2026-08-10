@@ -1,0 +1,41 @@
+# Stack pentru Coolify: două servicii, aceeași imagine, același volum.
+#
+# În Coolify: „New Resource” -> „Docker Compose”, indică depozitul acesta.
+# Domeniul se pune pe serviciul `dashboard`, portul 3000.
+
+services:
+  # Aduce datele și reconstruiește registrul, o dată pe lună.
+  scheduler:
+    build:
+      context: .
+      target: scheduler
+    restart: unless-stopped
+    environment:
+      # Ziua 1 a lunii, 03:00 UTC. Sursele naționale publică trimestrial,
+      # deci mai des nu are ce să aducă.
+      REGISTRU_CRON: ${REGISTRU_CRON:-0 3 1 * *}
+      REGISTRU_DATA_DIR: /data
+    volumes:
+      - registru-data:/data
+
+  # Servește interfața. Nu scrie nimic în registru, doar citește.
+  dashboard:
+    build:
+      context: .
+      target: dashboard
+    restart: unless-stopped
+    environment:
+      REGISTRU_DATA_DIR: /data
+      # Coolify completează variabila cu domeniul pe care îl alocă. În modul
+      # `prod` interfața și partea de server stau pe același port, deci este
+      # un singur domeniu de configurat.
+      API_URL: ${SERVICE_FQDN_DASHBOARD_3000:-http://localhost:3000}
+    ports:
+      - "3000"
+    volumes:
+      - registru-data:/data
+    depends_on:
+      - scheduler
+
+volumes:
+  registru-data:

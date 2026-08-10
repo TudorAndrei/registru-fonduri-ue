@@ -41,6 +41,8 @@ class FetchedFile:
 class Source(Protocol):
     id: str
     name: str
+    #: "project" pentru contracte semnate, "call" pentru apeluri deschise.
+    kind: str
 
     def fetch(self, *, limit: int | None = None) -> list[FetchedFile]: ...
 

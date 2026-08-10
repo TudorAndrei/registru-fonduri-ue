@@ -157,3 +157,25 @@ def classify(frame: pl.DataFrame) -> pl.DataFrame:
         pl.Series("software_label", [v.label for v in verdicts], dtype=pl.Utf8),
         pl.Series("software_evidence", [v.evidence for v in verdicts], dtype=pl.Utf8),
     ).with_columns((pl.col("software_score") >= THRESHOLD).alias("is_software"))
+
+
+def classify_calls(frame: pl.DataFrame) -> pl.DataFrame:
+    """Același scor, aplicat apelurilor.
+
+    Un apel nu are cod CAEN — nu există încă un beneficiar — deci rămân două
+    semnale: textul (titlu, obiectiv specific) și domeniile declarate de site,
+    dintre care „Digitalizare” și „Cercetare, dezvoltare, inovare” contează.
+    """
+    if frame.height == 0:
+        return frame
+
+    verdicts = []
+    for row in frame.select("title", "specific_objective", "domains").to_dicts():
+        domains = " ".join(row.get("domains") or [])
+        context = f"{row['specific_objective'] or ''} {domains}"
+        verdicts.append(score_row(row["title"], context, None, None))
+    return frame.with_columns(
+        pl.Series("software_score", [v.score for v in verdicts], dtype=pl.Float64),
+        pl.Series("software_label", [v.label for v in verdicts], dtype=pl.Utf8),
+        pl.Series("software_evidence", [v.evidence for v in verdicts], dtype=pl.Utf8),
+    ).with_columns((pl.col("software_score") >= THRESHOLD).alias("is_software"))

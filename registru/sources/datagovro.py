@@ -52,6 +52,7 @@ TABULAR_FORMATS = {"xlsx", "xls", "csv"}
 
 class DataGovRo:
     id = "datagovro"
+    kind = "project"
     name = "data.gov.ro (CKAN)"
 
     def __init__(self, datasets: list[str] | None = None) -> None:

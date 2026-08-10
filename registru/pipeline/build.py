@@ -10,25 +10,40 @@ import hashlib
 import duckdb
 import polars as pl
 
-from registru.config import INTERIM_DIR, REGISTRY_DUCKDB, REGISTRY_PARQUET, ensure_dirs
-from registru.pipeline.classify import classify
+from registru.config import (
+    CALLS_PARQUET,
+    INTERIM_DIR,
+    REGISTRY_DUCKDB,
+    REGISTRY_PARQUET,
+    ensure_dirs,
+)
+from registru.pipeline.classify import classify, classify_calls
 from registru.pipeline.normalize import normalize_geo, normalize_status_column
-from registru.schema import REGISTRY_COLUMNS, conform, empty_frame
+from registru.schema import (
+    CALLS_COLUMNS,
+    REGISTRY_COLUMNS,
+    conform,
+    conform_calls,
+    empty_calls,
+    empty_frame,
+)
 from registru.text import normalize_company
 
 
-def interim_path(source_id: str):
-    return INTERIM_DIR / f"{source_id}.parquet"
+def interim_path(source_id: str, kind: str = "project"):
+    suffix = "" if kind == "project" else f".{kind}"
+    return INTERIM_DIR / f"{source_id}{suffix}.parquet"
 
 
-def write_interim(source_id: str, frame: pl.DataFrame) -> None:
+def write_interim(source_id: str, frame: pl.DataFrame, kind: str = "project") -> None:
     ensure_dirs()
-    conform(frame).write_parquet(interim_path(source_id))
+    shaped = conform(frame) if kind == "project" else conform_calls(frame)
+    shaped.write_parquet(interim_path(source_id, kind))
 
 
 def read_interim(source_ids: list[str] | None = None) -> pl.DataFrame:
     ensure_dirs()
-    paths = sorted(INTERIM_DIR.glob("*.parquet"))
+    paths = [path for path in sorted(INTERIM_DIR.glob("*.parquet")) if "." not in path.stem]
     if source_ids:
         wanted = set(source_ids)
         paths = [path for path in paths if path.stem in wanted]
@@ -124,6 +139,45 @@ def _write_duckdb() -> None:
             FROM registru
             GROUP BY beneficiary_key
             """
+        )
+    finally:
+        connection.close()
+
+
+def read_interim_calls() -> pl.DataFrame:
+    ensure_dirs()
+    paths = sorted(INTERIM_DIR.glob("*.call.parquet"))
+    frames = [conform_calls(pl.read_parquet(path)) for path in paths]
+    if not frames:
+        return empty_calls()
+    return pl.concat(frames, how="vertical_relaxed")
+
+
+def build_calls() -> pl.DataFrame:
+    """Registrul apelurilor. Tabelă separată, deduplicată pe identitatea sursei."""
+    ensure_dirs()
+    frame = read_interim_calls()
+    if frame.height:
+        frame = frame.unique(subset=["source", "call_id"], keep="first")
+        frame = classify_calls(frame)
+    frame = frame.select([column for column in CALLS_COLUMNS if column in frame.columns])
+    frame.write_parquet(CALLS_PARQUET)
+    _attach_calls()
+    return frame
+
+
+def _attach_calls() -> None:
+    """Apelurile intră în același fișier DuckDB, ca tabelă proprie."""
+    if not CALLS_PARQUET.exists() or not REGISTRY_DUCKDB.exists():
+        return
+    connection = duckdb.connect(str(REGISTRY_DUCKDB))
+    try:
+        connection.execute("DROP TABLE IF EXISTS apeluri")
+        connection.execute(
+            "CREATE TABLE apeluri AS SELECT * FROM read_parquet(?)", [str(CALLS_PARQUET)]
+        )
+        connection.execute(
+            "CREATE OR REPLACE VIEW apeluri_active AS SELECT * FROM apeluri WHERE status = 'Activ'"
         )
     finally:
         connection.close()

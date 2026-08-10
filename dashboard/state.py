@@ -138,6 +138,17 @@ class State(rx.State):
     # ------------------------------------------------------- valori calculate
 
     @rx.var(cache=True)
+    def freshness(self) -> str:
+        """Când a rulat ultima dată pipeline-ul. Un registru vechi arată la fel ca unul proaspăt."""
+        from registru.schedule import read_latest
+
+        latest = read_latest()
+        if not latest:
+            return "Registrul nu a fost actualizat printr-o rulare programată."
+        state = "fără erori" if latest.get("ok") else "cu erori"
+        return f"Ultima actualizare: {str(latest.get('started_at'))[:16]} UTC, {state}."
+
+    @rx.var(cache=True)
     def has_registry(self) -> bool:
         return not load_registry().is_empty()
 

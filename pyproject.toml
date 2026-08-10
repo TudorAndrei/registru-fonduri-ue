@@ -9,6 +9,7 @@ authors = [{ name = "Tudor Andrei Dumitrașcu" }]
 keywords = ["fonduri-europene", "open-data", "romania", "esif", "cohesion-policy"]
 
 dependencies = [
+    "croniter>=3.0",
     "duckdb>=1.1",
     "fastexcel>=0.12",
     "httpx>=0.27",

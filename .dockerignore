@@ -1,0 +1,12 @@
+# Datele stau în volum, nu în imagine: fișierele descărcate sunt 12 MB și cresc.
+data/
+.web/
+.states/
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.git/
+.gitignore
+*.md
+!README.md

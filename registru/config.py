@@ -18,6 +18,7 @@ REGISTRY_DIR = DATA_DIR / "registry"
 
 REGISTRY_PARQUET = REGISTRY_DIR / "registru.parquet"
 REGISTRY_DUCKDB = REGISTRY_DIR / "registru.duckdb"
+CALLS_PARQUET = REGISTRY_DIR / "apeluri.parquet"
 
 USER_AGENT = "registru-fonduri-ue/0.1 (+https://github.com/TudorAndrei/registru-fonduri-ue)"
 HTTP_TIMEOUT = 120.0

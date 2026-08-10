@@ -279,15 +279,15 @@ def empty_state() -> rx.Component:
     )
 
 
-@rx.page(title="Registru fonduri UE — România")
-def index() -> rx.Component:
+@rx.page(route="/proiecte", title="Proiecte finanțate — Registru fonduri UE")
+def projects_page() -> rx.Component:
     return rx.container(
         rx.vstack(
             rx.hstack(
                 rx.vstack(
-                    rx.heading("Registru fonduri UE", size="7"),
+                    rx.heading("Proiecte deja finanțate", size="7"),
                     rx.text(
-                        "Proiecte cu finanțare europeană în România, cu accent pe software.",
+                        "Cine a luat bani și pentru ce — util ca să vezi ce trece la evaluare.",
                         color_scheme="gray",
                         size="2",
                     ),
@@ -295,6 +295,7 @@ def index() -> rx.Component:
                     align="start",
                 ),
                 rx.spacer(),
+                rx.link(rx.button("Apeluri deschise", variant="soft", size="2"), href="/"),
                 rx.color_mode.button(),
                 width="100%",
                 align="center",
@@ -333,8 +334,9 @@ def index() -> rx.Component:
                 ),
                 empty_state(),
             ),
+            rx.text(State.freshness, size="1", color_scheme="gray"),
             rx.text(
-                "Sursele: data.gov.ro (OGL-ROU-1.0) și Kohesio. "
+                "Sursele: data.gov.ro (OGL-ROU-1.0), Kohesio și oportunitati-ue.gov.ro. "
                 f"Fără filtru = {ALL}. Fiecare rând are legătura către fișierul original.",
                 size="1",
                 color_scheme="gray",
@@ -350,6 +352,7 @@ def index() -> rx.Component:
 
 # Tema stă în `rxconfig.py`, prin `RadixThemesPlugin`; `rx.App(theme=...)` este scos în 1.0.
 # Importul înregistrează ruta /proiect/[record_id] prin decoratorul @rx.page.
+import dashboard.calls  # noqa: E402, F401
 import dashboard.project  # noqa: E402, F401
 
 app = rx.App()

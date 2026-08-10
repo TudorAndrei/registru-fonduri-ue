@@ -19,8 +19,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from registru.config import REGISTRY_DUCKDB, REGISTRY_PARQUET, ensure_dirs
+from registru.config import CALLS_PARQUET, REGISTRY_DUCKDB, REGISTRY_PARQUET, ensure_dirs
 from registru.pipeline.build import build as build_registry
+from registru.pipeline.build import build_calls as build_calls_registry
 from registru.pipeline.build import write_interim
 from registru.sources import SOURCES, get_source
 
@@ -35,10 +36,34 @@ console = Console()
 @app.command()
 def sources() -> None:
     """Arată adaptoarele disponibile."""
-    table = Table("id", "sursă")
+    table = Table("id", "produce", "sursă")
     for source_id in sorted(SOURCES):
-        table.add_row(source_id, get_source(source_id).name)
+        adapter = get_source(source_id)
+        kind = "apeluri" if getattr(adapter, "kind", "project") == "call" else "proiecte"
+        table.add_row(source_id, kind, adapter.name)
     console.print(table)
+
+
+@app.command()
+def calls(
+    active: Annotated[bool, typer.Option(help="doar apelurile deschise acum")] = True,
+    software: Annotated[bool, typer.Option(help="doar apelurile clasificate ca software")] = False,
+) -> None:
+    """Apelurile de finanțare din registru."""
+    if not CALLS_PARQUET.exists():
+        raise typer.BadParameter("nu există apeluri; rulează `registru fetch oportunitati`")
+    frame = pl.read_parquet(CALLS_PARQUET)
+    if active:
+        frame = frame.filter(pl.col("status") == "Activ")
+    if software and "is_software" in frame.columns:
+        frame = frame.filter(pl.col("is_software"))
+    table = Table("închide", "buget", "apel")
+    for row in frame.sort("closes_at", nulls_last=True).head(40).to_dicts():
+        amount = row.get("budget_amount")
+        budget = f"{amount:,.0f} {row.get('budget_currency') or ''}" if amount else "—"
+        table.add_row(str(row.get("closes_at") or "—"), budget, str(row.get("title"))[:70])
+    console.print(table)
+    console.print(f"{frame.height:,} apeluri")
 
 
 @app.command()
@@ -71,7 +96,7 @@ def extract(
         adapter = get_source(source_id)
         console.print(f"[bold]{adapter.name}[/bold]")
         frame = adapter.extract()
-        write_interim(source_id, frame)
+        write_interim(source_id, frame, getattr(adapter, "kind", "project"))
         console.print(f"  {frame.height:,} rânduri")
 
 
@@ -81,10 +106,17 @@ def build(
 ) -> None:
     """Deduplică, clasifică și scrie registrul (Parquet + DuckDB)."""
     frame = build_registry([source] if source else None)
-    console.print(f"[green]{frame.height:,}[/green] rânduri -> {REGISTRY_PARQUET}")
+    console.print(f"[green]{frame.height:,}[/green] proiecte -> {REGISTRY_PARQUET}")
     if "is_software" in frame.columns:
         software = int(frame["is_software"].sum())
         console.print(f"din care software: [green]{software:,}[/green]")
+
+    calls = build_calls_registry()
+    if calls.height:
+        active = int((calls["status"] == "Activ").sum())
+        console.print(
+            f"[green]{calls.height:,}[/green] apeluri -> {CALLS_PARQUET} ({active:,} active)"
+        )
 
 
 @app.command()
@@ -150,6 +182,46 @@ def export(
     else:
         frame.write_csv(target)
     console.print(f"{frame.height:,} rânduri -> {target}")
+
+
+@app.command()
+def schedule(
+    cron: Annotated[str | None, typer.Option(help="expresie cron; implicit lunar, ziua 1")] = None,
+    once: Annotated[bool, typer.Option(help="rulează o singură dată și ieși")] = False,
+    limit: Annotated[int | None, typer.Option(help="limită per sursă")] = None,
+) -> None:
+    """Rulează pipeline-ul periodic și ține jurnalul rulărilor."""
+    from registru.schedule import run_once, serve
+
+    if once:
+        report = run_once(limit=limit)
+        console.print(report.summary())
+        for error in report.errors:
+            console.print(f"[red]{error}[/red]")
+        raise typer.Exit(0 if report.ok else 1)
+    serve(cron, limit=limit)
+
+
+@app.command()
+def runs(limit: Annotated[int, typer.Option(help="câte rulări să arate")] = 10) -> None:
+    """Jurnalul rulărilor."""
+    from registru.schedule import history
+
+    entries = history(limit)
+    if not entries:
+        console.print("nicio rulare înregistrată")
+        raise typer.Exit(0)
+    table = Table("început", "durată", "proiecte", "apeluri", "stare")
+    for entry in entries:
+        state = "[green]ok[/green]" if entry.get("ok") else "[red]erori[/red]"
+        table.add_row(
+            str(entry.get("started_at"))[:19],
+            f"{entry.get('seconds', 0):.0f}s",
+            f"{entry.get('projects', 0):,} (+{entry.get('projects_new', 0):,})",
+            f"{entry.get('calls', 0):,} (+{entry.get('calls_new', 0):,})",
+            state,
+        )
+    console.print(table)
 
 
 @app.command()

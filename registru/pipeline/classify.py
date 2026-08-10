@@ -10,6 +10,7 @@ intră un model de limbaj este `score_row`, fără schimbări în restul pipelin
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import polars as pl
@@ -34,6 +35,17 @@ KEYWORDS: dict[str, tuple[str, float]] = {
     "api": ("produs", 0.4),
     # digitalizare internă
     "digitalizare": ("digitalizare", 0.7),
+    # Formulările din ghidurile 2021-2027. „Digital” singur ar prinde orice apel
+    # de mediu sau de transport care pomenește o componentă digitală, deci se
+    # potrivesc doar expresiile care numesc chiar o lucrare de software.
+    "solutii digitale": ("produs", 0.7),
+    "solutie digitala": ("produs", 0.7),
+    "servicii publice digitale": ("digitalizare", 0.8),
+    "servicii digitale": ("digitalizare", 0.65),
+    "instrumente digitale": ("digitalizare", 0.6),
+    "hub de inovare digitala": ("digitalizare", 0.6),
+    "interoperabilitate": ("digitalizare", 0.6),
+    "prelucrarea datelor": ("cdi", 0.55),
     "transformare digitala": ("digitalizare", 0.7),
     "erp": ("digitalizare", 0.75),
     "crm": ("digitalizare", 0.75),
@@ -80,6 +92,35 @@ WEIGHT_TEXT = 0.75
 #: Peste acest scor, rândul intră în vederea „software” a registrului.
 THRESHOLD = 0.5
 
+#: Potrivirea se face pe cuvinte, nu pe subșiruri. `"api" in text` se potrivea
+#: în „capitalizare”, `"erp"` în „interpretare”, `"iot"` în „biotehnologie” — și
+#: fiecare adăuga scor unui proiect care nu are nimic software.
+#:
+#: Româna este flexionară, iar flexiunea nu stă doar la coadă: „digitalizare”
+#: trebuie să prindă „digitalizarea” și „digitalizării”, iar „soluție
+#: informatică” trebuie să prindă „soluții informatice”, unde se schimbă ambele
+#: cuvinte. Deci fiecare cuvânt lung se caută după rădăcină, cu o terminație
+#: liberă. Cuvintele scurte („api”, „erp”, „iot”) se caută exact, altfel „api”
+#: ar prinde „apicultură”.
+STEM_MIN_LENGTH = 5
+STEM_MAX_SUFFIX = 4
+
+
+def _word_pattern(word: str) -> str:
+    if len(word) < STEM_MIN_LENGTH:
+        return re.escape(word)
+    return re.escape(word[:-1]) + f"[a-z]{{0,{STEM_MAX_SUFFIX}}}"
+
+
+def _pattern(keyword: str) -> re.Pattern[str]:
+    """Expresie pentru un cuvânt-cheie, cu rădăcini pentru fiecare cuvânt lung."""
+    body = "[ -]+".join(_word_pattern(word) for word in keyword.split())
+    return re.compile(rf"(?<![a-z0-9]){body}(?![a-z0-9])")
+
+
+_PATTERNS: dict[str, re.Pattern[str]] = {word: _pattern(word) for word in KEYWORDS}
+_NEGATIVE_PATTERNS: dict[str, re.Pattern[str]] = {word: _pattern(word) for word in NEGATIVE}
+
 
 @dataclass(slots=True)
 class Verdict:
@@ -119,13 +160,13 @@ def score_row(
     if text:
         best = 0.0
         for keyword, (label, weight) in KEYWORDS.items():
-            if keyword in text:
+            if _PATTERNS[keyword].search(text):
                 labels[label] = labels.get(label, 0) + weight
                 best = max(best, weight)
                 evidence.append(keyword)
         score += WEIGHT_TEXT * best
         for keyword, penalty in NEGATIVE.items():
-            if keyword in text:
+            if _NEGATIVE_PATTERNS[keyword].search(text):
                 score -= penalty
                 evidence.append(f"-{keyword}")
 
@@ -159,12 +200,23 @@ def classify(frame: pl.DataFrame) -> pl.DataFrame:
     ).with_columns((pl.col("software_score") >= THRESHOLD).alias("is_software"))
 
 
+#: Cât adaugă eticheta de domeniu pusă de portal. Sub prag intenționat: singură
+#: nu ajunge. Portalul etichetează larg — un apel de infrastructură spitalicească
+#: poartă „Digitalizare” lângă „Sănătate” și „Infrastructură”, pentru că are și o
+#: componentă digitală, nu pentru că este un apel de software.
+WEIGHT_DOMAIN = 0.35
+
+
 def classify_calls(frame: pl.DataFrame) -> pl.DataFrame:
     """Același scor, aplicat apelurilor.
 
     Un apel nu are cod CAEN — nu există încă un beneficiar — deci rămân două
-    semnale: textul (titlu, obiectiv specific) și domeniile declarate de site,
-    dintre care „Digitalizare” și „Cercetare, dezvoltare, inovare” contează.
+    semnale: textul propriu (titlu și obiectiv specific) și eticheta de domeniu
+    pusă de portal.
+
+    Cele două se numără o singură dată fiecare. Domeniile **nu** se lipesc în
+    textul dat clasificatorului: altfel „Digitalizare” ar fi numărat și ca
+    potrivire de cuvânt, și ca etichetă, iar suma trece pragul de una singură.
     """
     if frame.height == 0:
         return frame
@@ -172,14 +224,11 @@ def classify_calls(frame: pl.DataFrame) -> pl.DataFrame:
     verdicts = []
     for row in frame.select("title", "specific_objective", "domains").to_dicts():
         domains = row.get("domains") or []
-        context = f"{row['specific_objective'] or ''} {' '.join(domains)}"
-        verdict = score_row(row["title"], context, None, None)
-        # Domeniul declarat de portal este un semnal mai tare decât o potrivire
-        # de cuvinte în titlu: îl pune omul care a publicat apelul.
+        verdict = score_row(row["title"], row["specific_objective"], None, None)
         if "Digitalizare" in domains:
             verdict = Verdict(
-                min(1.0, verdict.score + 0.5),
-                "digitalizare",
+                round(min(1.0, verdict.score + WEIGHT_DOMAIN), 3),
+                verdict.label if verdict.label != "necunoscut" else "digitalizare",
                 "; ".join(filter(None, ["domeniu: Digitalizare", verdict.evidence])),
             )
         verdicts.append(verdict)

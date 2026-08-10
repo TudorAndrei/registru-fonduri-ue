@@ -171,9 +171,18 @@ def classify_calls(frame: pl.DataFrame) -> pl.DataFrame:
 
     verdicts = []
     for row in frame.select("title", "specific_objective", "domains").to_dicts():
-        domains = " ".join(row.get("domains") or [])
-        context = f"{row['specific_objective'] or ''} {domains}"
-        verdicts.append(score_row(row["title"], context, None, None))
+        domains = row.get("domains") or []
+        context = f"{row['specific_objective'] or ''} {' '.join(domains)}"
+        verdict = score_row(row["title"], context, None, None)
+        # Domeniul declarat de portal este un semnal mai tare decât o potrivire
+        # de cuvinte în titlu: îl pune omul care a publicat apelul.
+        if "Digitalizare" in domains:
+            verdict = Verdict(
+                min(1.0, verdict.score + 0.5),
+                "digitalizare",
+                "; ".join(filter(None, ["domeniu: Digitalizare", verdict.evidence])),
+            )
+        verdicts.append(verdict)
     return frame.with_columns(
         pl.Series("software_score", [v.score for v in verdicts], dtype=pl.Float64),
         pl.Series("software_label", [v.label for v in verdicts], dtype=pl.Utf8),

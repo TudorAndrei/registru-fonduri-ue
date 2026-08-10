@@ -16,6 +16,7 @@ citesc din pagina apelului, și numai pentru apelurile noi sau modificate.
 
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import re
@@ -199,8 +200,8 @@ class Oportunitati:
         return self._save_text(f"detail/{slug}.html", response.text, url)
 
     def _detail_is_stale(self, slug: str, modified: str | None) -> bool:
-        path = RAW_DIR / self.id / "detail" / f"{slug}.html"
-        if not path.exists():
+        path = _detail_path(slug)
+        if path is None:
             return True
         if not modified:
             return False
@@ -216,14 +217,20 @@ class Oportunitati:
         return self._save_text(relative, json.dumps(payload, ensure_ascii=False), url)
 
     def _save_text(self, relative: str, text: str, url: str) -> FetchedFile:
-        path = RAW_DIR / self.id / relative
+        # Fișele sunt pagini WordPress de ~150 KB fiecare, iar sunt peste 5.000:
+        # 785 MB necomprimate, sub 100 MB comprimate. Pe un volum de server,
+        # diferența contează. Conținutul rămâne neatins — doar învelișul se schimbă.
+        path = RAW_DIR / self.id / (relative + ".gz" if relative.endswith(".html") else relative)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, "utf-8")
+        if path.suffix == ".gz":
+            path.write_bytes(gzip.compress(text.encode("utf-8"), compresslevel=6))
+        else:
+            path.write_text(text, "utf-8")
         return FetchedFile(
             source=self.id,
             dataset="apeluri",
             url=url,
-            path=str(Path(self.id) / relative),
+            path=str(path.relative_to(RAW_DIR)),
             sha256=sha256_file(path),
             bytes=path.stat().st_size,
             fetched_at=now_iso(),
@@ -265,10 +272,19 @@ class Oportunitati:
         folder = RAW_DIR / self.id / "detail"
         if not folder.exists():
             return {}
-        return {
-            path.stem: parse_detail(path.read_text("utf-8", errors="replace"))
-            for path in folder.glob("*.html")
-        }
+        out: dict[str, dict] = {}
+        for path in sorted(folder.iterdir()):
+            if path.suffix == ".gz":
+                slug, html = (
+                    path.name[: -len(".html.gz")],
+                    gzip.decompress(path.read_bytes()).decode("utf-8", "replace"),
+                )
+            elif path.suffix == ".html":
+                slug, html = path.stem, path.read_text("utf-8", errors="replace")
+            else:
+                continue
+            out[slug] = parse_detail(html)
+        return out
 
 
 # ------------------------------------------------------------------ parsare
@@ -278,6 +294,16 @@ _TAG = re.compile(r"<[^>]+>")
 _SPACE = re.compile(r"[ \t\xa0]+")
 
 
+def _detail_path(slug: str) -> Path | None:
+    """Fișa unui apel, comprimată sau nu. Descărcările vechi rămân valabile."""
+    folder = RAW_DIR / "oportunitati" / "detail"
+    for name in (f"{slug}.html.gz", f"{slug}.html"):
+        candidate = folder / name
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def _plain(html: str) -> str:
     """Pagina, redusă la text, cu marcatori `|` între elemente."""
     text = re.sub(r"<script.*?</script>", " ", html, flags=re.S)
@@ -285,6 +311,29 @@ def _plain(html: str) -> str:
     text = _TAG.sub("|", text)
     text = unescape(_SPACE.sub(" ", text))
     return re.sub(r"(\s*\|\s*)+", "|", text)
+
+
+def _list_after(text: str, label: str, stop: tuple[str, ...], width: int = 1200) -> list[str]:
+    """Elementele enumerate după o etichetă, până la următoarea secțiune.
+
+    Fișa apelului listează „Beneficiari eligibili” și „Domenii” separate prin
+    virgulă și marcatori de element; API-ul le lasă goale pentru multe apeluri,
+    deci pagina este sursa mai bogată.
+    """
+    index = text.find(label)
+    if index < 0:
+        return []
+    tail = text[index + len(label) : index + len(label) + width]
+    for marker in stop:
+        cut = tail.find(marker)
+        if cut > 0:
+            tail = tail[:cut]
+    items: list[str] = []
+    for chunk in tail.replace("|", ",").split(","):
+        value = chunk.strip(" .:;")
+        if len(value) > 2 and value.lower() not in {"domenii", "share"}:
+            items.append(value)
+    return list(dict.fromkeys(items))[:20]
 
 
 def _after(text: str, label: str, width: int = 260) -> str | None:
@@ -352,6 +401,10 @@ def parse_detail(html: str) -> dict:
         "closes_at": closes,
         "continuous": bool(call_type and "fără termen" in call_type.lower()),
         "programs": [programs] if programs else [],
+        "beneficiaries": _list_after(
+            text, "Beneficiari eligibili", ("Criterii de eligibilitate", "Activități", "Buget")
+        ),
+        "domains": _list_after(text, "Domenii Apel:", ("Zone Geografice", "Share", "Calendar")),
         "documents": sorted(set(re.findall(r'href="(https?://[^"]+\.pdf)"', html)))[:10],
     }
 
@@ -363,13 +416,17 @@ def call_status(opens: date | None, closes: date | None, continuous: bool, today
     deschidere și de închidere spun același lucru și nu pot fi în contradicție
     cu ele însele.
     """
-    if continuous and (opens is None or opens <= today):
-        return "Activ"
-    if opens and opens > today:
-        return "Urmează"
+    # Termenul trecut bate orice altceva. „Depunere continuă” cu data de
+    # închidere în 2024 înseamnă închis, nu continuu — altfel registrul ar
+    # recomanda apeluri la care nu se mai poate depune, ceea ce este mai rău
+    # decât să nu le arate deloc.
     if closes and closes < today:
         return "Închis"
+    if opens and opens > today:
+        return "Urmează"
     if closes and closes >= today:
+        return "Activ"
+    if continuous and (opens is None or opens <= today):
         return "Activ"
     return "Necunoscut"
 
@@ -403,8 +460,12 @@ def _row(item: dict, terms: dict[str, dict[int, str]], detail: dict | None, entr
     }
     for taxonomy, field in TAXONOMIES.items():
         ids = item.get(taxonomy) or []
-        row[field] = [terms.get(taxonomy, {}).get(term_id, "") for term_id in ids]
-        row[field] = [name for name in row[field] if name]
+        names = [terms.get(taxonomy, {}).get(term_id, "") for term_id in ids]
+        row[field] = [name for name in names if name]
+        # Fișa apelului este mai bogată decât API-ul: multe apeluri au
+        # taxonomiile goale acolo, dar listate în pagină.
+        if not row[field] and detail.get(field):
+            row[field] = detail[field]
     return row
 
 

@@ -41,6 +41,13 @@ DATE_FORMATS = (
 _EXCEL_EPOCH = date(1899, 12, 30)
 _MONEY = re.compile(r"[^0-9,.\-]")
 
+#: Rânduri care nu sunt proiecte, deși stau în tabel: totalurile din subsol și
+#: capetele de coloană rămase. Se caută în numele beneficiarului.
+NOT_A_BENEFICIARY = re.compile(
+    r"^(total|subtotal|contributi|cheltuieli|valoare|suma|fonduri|nr\.? crt)",
+    re.IGNORECASE,
+)
+
 MONEY_COLUMNS = (
     "total_eligible_amount",
     "total_project_amount",
@@ -81,6 +88,28 @@ def find_header_row(rows: list[list[str]]) -> int | None:
     return best_index if best_score >= 2 else None
 
 
+def looks_like_header(row: list[str]) -> bool:
+    """Rândul acesta este tot un antet, nu date?
+
+    Fișierele oficiale repetă antetul: o dată tradus în engleză imediat sub cel
+    românesc, și încă o dată în capul fiecărei pagini de PDF. Fără verificarea
+    asta, „SMIS code” ajunge în registru ca și cum ar fi un cod de proiect.
+
+    Verificarea rulează pentru fiecare rând al fiecărui fișier, deci întâi
+    elimină ieftin ce nu are cum să fie antet. Un rând de date poartă coduri,
+    sume și date calendaristice — adică cifre — iar un antet nu. Fără filtrul
+    acesta, maparea completă s-ar face de zeci de mii de ori degeaba.
+    """
+    texte = [
+        value
+        for value in (cell(v) for v in row)
+        if value and len(value) <= 90 and not any(ch.isdigit() for ch in value)
+    ]
+    if len(texte) < 2:
+        return False
+    return len(map_columns(texte)) >= 2
+
+
 def frame_from_rows(rows: list[list[str]]) -> pl.DataFrame | None:
     """Rânduri brute -> cadru cu antet detectat. None dacă nu se recunoaște nimic."""
     if not rows:
@@ -89,16 +118,37 @@ def frame_from_rows(rows: list[list[str]]) -> pl.DataFrame | None:
     if index is None:
         return None
     headers = dedupe_headers([cell(value) for value in rows[index]])
-    body = rows[index + 1 :]
+    body = [row for row in rows[index + 1 :] if not looks_like_header(row)]
     if not body:
         return None
     width = len(headers)
-    data = {name: [] for name in headers}
+    data: dict[str, list[str]] = {name: [] for name in headers}
     for row in body:
         padded = [cell(value) for value in row[:width]] + [""] * max(0, width - len(row))
         for name, value in zip(headers, padded, strict=True):
             data[name].append(value)
     return pl.DataFrame(data)
+
+
+#: Linia care desparte antetul de corp într-un tabel Markdown: `|---|---|`.
+_SEPARATOR = re.compile(r"^\|[\s:|-]+\|?$")
+
+
+def rows_from_markdown(text: str) -> list[list[str]]:
+    """Rândurile tabelelor dintr-un document Markdown.
+
+    anydoc convertește PDF-ul într-un singur tabel pentru tot documentul, nu
+    unul per pagină. Asta este exact ce lipsea: `pdfplumber` detectează coloane
+    separat pe fiecare pagină, iar o pagină cu o coloană în minus decalează tot
+    ce urmează.
+    """
+    rows: list[list[str]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or _SEPARATOR.match(line):
+            continue
+        rows.append([c.strip() for c in line.strip("|").split("|")])
+    return rows
 
 
 def read_tabular(path: Path) -> pl.DataFrame | None:
@@ -211,6 +261,12 @@ def clean_frame(frame: pl.DataFrame) -> pl.DataFrame:
         frame = frame.with_columns(exprs)
     if "beneficiary_name" in frame.columns:
         frame = frame.filter(
-            pl.col("beneficiary_name").is_not_null() & (pl.col("beneficiary_name") != "")
+            pl.col("beneficiary_name").is_not_null()
+            & (pl.col("beneficiary_name") != "")
+            # Un beneficiar are literă. Când `beneficiary_name` conține o sumă,
+            # coloanele s-au decalat la citirea PDF-ului, iar rândul nu spune ce
+            # pretinde că spune.
+            & pl.col("beneficiary_name").str.contains(r"[A-Za-zÀ-ž]{3}")
+            & ~pl.col("beneficiary_name").str.contains(NOT_A_BENEFICIARY.pattern[1:])
         )
     return frame

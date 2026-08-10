@@ -1,0 +1,151 @@
+/* Tema urmează setarea sistemului. Fără comutator: o pagină de căutare nu are
+   nevoie de preferințe salvate. */
+:root {
+  color-scheme: light dark;
+  --fundal: #ffffff;
+  --card: #f6f6f7;
+  --margine: #e3e3e6;
+  --text: #16161a;
+  --sters: #6b6b76;
+  --accent: #5a4fcf;
+  --accent-slab: #ece9fb;
+  --verde: #1a7f4b;
+  --rosu: #b4232c;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundal: #101014;
+    --card: #1a1a20;
+    --margine: #2a2a33;
+    --text: #ececf1;
+    --sters: #9a9aa8;
+    --accent: #9d95f5;
+    --accent-slab: #262040;
+    --verde: #4ade80;
+    --rosu: #f87171;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 2rem 1.25rem 4rem;
+  background: var(--fundal);
+  color: var(--text);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main { max-width: 1240px; margin: 0 auto; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+header.sus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+header.sus h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+header.sus p { margin: 0; color: var(--sters); font-size: 0.9rem; }
+nav a {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--margine);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+nav a[aria-current="page"] { background: var(--accent-slab); border-color: var(--accent); }
+
+.indicatori { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; }
+.indicator {
+  flex: 1 1 11rem;
+  padding: 0.85rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--margine);
+  border-radius: var(--radius);
+}
+.indicator span { display: block; font-size: 0.78rem; color: var(--sters); }
+.indicator strong { font-size: 1.5rem; font-weight: 600; }
+
+.filtre {
+  padding: 1rem;
+  background: var(--card);
+  border: 1px solid var(--margine);
+  border-radius: var(--radius);
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+.camp { display: flex; flex-direction: column; gap: 0.3rem; }
+.camp > label { font-size: 0.78rem; color: var(--sters); font-weight: 500; }
+.camp.lat { flex: 1 1 100%; }
+
+input, select, button {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--margine);
+  border-radius: 8px;
+  background: var(--fundal);
+  color: var(--text);
+  min-width: 11rem;
+}
+.camp.lat input { width: 100%; }
+button { cursor: pointer; min-width: 0; }
+button:hover { border-color: var(--accent); }
+
+.comutator { display: flex; align-items: center; gap: 0.5rem; align-self: flex-end; }
+.comutator input { min-width: 0; width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+.comutator label { font-size: 0.9rem; }
+
+.tabel-cadru {
+  border: 1px solid var(--margine);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  background: var(--card);
+}
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { padding: 0.6rem 0.7rem; text-align: left; vertical-align: top; }
+th { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--sters); }
+tbody tr { border-top: 1px solid var(--margine); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+td small { display: block; color: var(--sters); font-size: 0.78rem; }
+
+.eticheta {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--accent-slab);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.eticheta.gri { background: var(--margine); color: var(--sters); }
+.eticheta.verde { background: color-mix(in srgb, var(--verde) 18%, transparent); color: var(--verde); }
+.eticheta.rosu { background: color-mix(in srgb, var(--rosu) 18%, transparent); color: var(--rosu); }
+
+.pagini { display: flex; gap: 0.75rem; align-items: center; justify-content: center; padding: 0.85rem; }
+.pagini span { color: var(--sters); font-size: 0.85rem; }
+
+.stare { padding: 2rem; text-align: center; color: var(--sters); }
+
+.fisa { display: grid; gap: 1rem; }
+.fisa section {
+  padding: 1rem 1.15rem;
+  background: var(--card);
+  border: 1px solid var(--margine);
+  border-radius: var(--radius);
+}
+.fisa h2 { font-size: 0.95rem; margin: 0 0 0.6rem; }
+.fisa dl { display: grid; grid-template-columns: minmax(9rem, 15rem) 1fr; gap: 0.4rem 1rem; margin: 0; }
+.fisa dt { color: var(--sters); font-size: 0.85rem; }
+.fisa dd { margin: 0; font-size: 0.9rem; overflow-wrap: anywhere; }
+
+footer { margin-top: 2rem; color: var(--sters); font-size: 0.8rem; }

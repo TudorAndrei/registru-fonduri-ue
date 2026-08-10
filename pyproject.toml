@@ -12,6 +12,7 @@ dependencies = [
     "croniter>=3.0",
     "duckdb>=1.1",
     "fastexcel>=0.12",
+    "firecrawl-anydoc==0.1.2",
     "httpx>=0.27",
     "pdfplumber>=0.11.10",
     "polars>=1.9",

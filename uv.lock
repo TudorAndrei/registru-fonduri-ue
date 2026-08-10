@@ -381,6 +381,21 @@ wheels = [
 ]
 
 [[package]]
+name = "firecrawl-anydoc"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/65/2a58f85793afe3220713a83efc19281715ab07df4793d06e42d9391417d4/firecrawl_anydoc-0.1.2.tar.gz", hash = "sha256:803fcd38115cb348b72039e3cb1b8f90e6c354be57a4bd9dbfd1d61771a34df0", size = 182678, upload-time = "2026-08-04T16:31:05.177Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/34/12b935215f1f22bf813e2360f89d9028ecb6c7d792de1aa26d50b17b2255/firecrawl_anydoc-0.1.2-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:a11e52f8c3b0324ddfb9ca084da1726aa94c7edd3e0be8861054a78148817e5a", size = 3511079, upload-time = "2026-08-04T16:30:52.139Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/47/8a69965d9fa80bf59ab8d1b3f094d24f28d0ce52b156946da41639897964/firecrawl_anydoc-0.1.2-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:64e31b157c5e6fd207873dbcbc976f6edc4206f8c568b95c9a1b36288b6e13c5", size = 3299018, upload-time = "2026-08-04T16:30:53.886Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/ce/523f82ca634a884b22893e9880981244c028e76ff84a5e3cdf95f01f2464/firecrawl_anydoc-0.1.2-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3608efc231079d02296cce7ea9221a7f9035cb18b25733aa690aa893551cc5c0", size = 3373989, upload-time = "2026-08-04T16:30:55.739Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/19/99ec27c23bd4c84605689b95c076c2ef77b692a68b9de505f310988ec058/firecrawl_anydoc-0.1.2-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ddf470ec9d5c7871cd71fde0446938523699233c167311997b05aee84f978bf1", size = 3605113, upload-time = "2026-08-04T16:30:57.595Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/1a/abcb8ee628faaf1d10b4f92794996196f6ebd93f93b966940a64966f099d/firecrawl_anydoc-0.1.2-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:60b3afcbb7edc8d206dedd0db4d3a1219425041986d80a95637cdc6aaaceacf2", size = 3555503, upload-time = "2026-08-04T16:30:59.377Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/f0/0c306b5a550102ea74fa1356579370a592eca29ecc949abdd687b3e16a80/firecrawl_anydoc-0.1.2-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:3465caf796ebbd774607c56229c3c188fc1562a1add5c25efc54ad8da336fa11", size = 3844917, upload-time = "2026-08-04T16:31:01.186Z" },
+    { url = "https://files.pythonhosted.org/packages/df/55/7b634a1c7963b1cbb45214e2bcf70cc3b7885710826f54b8d4bd149461ed/firecrawl_anydoc-0.1.2-cp310-abi3-win_amd64.whl", hash = "sha256:dcb20ff01a7874acd3397903271da64e0cc966d2a516afff54527df8dc58ba30", size = 3630743, upload-time = "2026-08-04T16:31:03.609Z" },
+]
+
+[[package]]
 name = "granian"
 version = "2.8.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1216,6 +1231,7 @@ dependencies = [
     { name = "croniter" },
     { name = "duckdb" },
     { name = "fastexcel" },
+    { name = "firecrawl-anydoc" },
     { name = "httpx" },
     { name = "pdfplumber" },
     { name = "polars" },
@@ -1241,6 +1257,7 @@ requires-dist = [
     { name = "croniter", specifier = ">=3.0" },
     { name = "duckdb", specifier = ">=1.1" },
     { name = "fastexcel", specifier = ">=0.12" },
+    { name = "firecrawl-anydoc", specifier = "==0.1.2" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pdfplumber", specifier = ">=0.11.10" },
     { name = "polars", specifier = ">=1.9" },

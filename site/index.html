@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apeluri deschise — Registru fonduri UE</title>
+<meta name="description" content="Ce finanțări europene mai poți lua în România: apeluri deschise, cu termen, buget și cine poate depune.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <header class="sus">
+    <div>
+      <h1>Apeluri de finanțare</h1>
+      <p>Ce finanțări mai poți lua. Sursa: oportunitati-ue.gov.ro.</p>
+    </div>
+    <nav>
+      <a href="index.html" aria-current="page">Apeluri deschise</a>
+      <a href="proiecte.html">Proiecte finanțate</a>
+    </nav>
+  </header>
+
+  <div class="indicatori">
+    <div class="indicator"><span>Apeluri</span><strong id="k-total">…</strong></div>
+    <div class="indicator"><span>Buget cumulat</span><strong id="k-buget">…</strong></div>
+    <div class="indicator"><span>Din care software</span><strong id="k-software">…</strong></div>
+    <div class="indicator"><span>Cel mai apropiat termen</span><strong id="k-termen">…</strong></div>
+  </div>
+
+  <form class="filtre" id="filtre" autocomplete="off">
+    <div class="camp lat">
+      <label for="cauta">Căutare</label>
+      <input id="cauta" name="cauta" type="search" placeholder="Caută în titlul apelului…">
+    </div>
+    <div class="camp">
+      <label for="stare">Stare</label>
+      <select id="stare" name="stare"></select>
+    </div>
+    <div class="camp">
+      <label for="domeniu">Domeniu</label>
+      <select id="domeniu" name="domeniu"></select>
+    </div>
+    <div class="camp">
+      <label for="beneficiar">Cine poate depune</label>
+      <select id="beneficiar" name="beneficiar"></select>
+    </div>
+    <div class="camp">
+      <label for="buget">Buget minim</label>
+      <input id="buget" name="buget" type="number" min="0" step="10000" placeholder="ex. 100000">
+    </div>
+    <div class="comutator">
+      <input id="software" name="software" type="checkbox">
+      <label for="software">Doar software și digitalizare</label>
+    </div>
+    <div class="comutator">
+      <button type="button" id="reset">Șterge filtrele</button>
+    </div>
+  </form>
+
+  <div class="tabel-cadru">
+    <table>
+      <thead>
+        <tr>
+          <th>Stare</th>
+          <th>Apel</th>
+          <th>Domenii</th>
+          <th>Cine poate depune</th>
+          <th>Buget</th>
+          <th>Se închide</th>
+        </tr>
+      </thead>
+      <tbody id="randuri">
+        <tr><td colspan="6" class="stare">Se încarcă registrul…</td></tr>
+      </tbody>
+    </table>
+    <div class="pagini">
+      <button type="button" id="inapoi">‹ Înapoi</button>
+      <span id="pagina">—</span>
+      <button type="button" id="inainte">Înainte ›</button>
+    </div>
+  </div>
+
+  <footer id="subsol">
+    Registrul rulează în întregime în browser: fișierele sunt citite direct, fără server.
+  </footer>
+</main>
+<script type="module" src="assets/apeluri.js"></script>
+</body>
+</html>

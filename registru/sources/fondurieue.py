@@ -29,9 +29,16 @@ import polars as pl
 import wayback
 
 from registru.config import HTTP_TIMEOUT, INTERIM_DIR, RAW_DIR, USER_AGENT
+from registru.headers import map_columns
 from registru.schema import conform, empty_frame
 from registru.sources.base import FetchedFile, now_iso, read_manifest, sha256_file, write_manifest
-from registru.tabular import clean_frame, frame_from_rows, read_tabular
+from registru.tabular import (
+    clean_frame,
+    frame_from_rows,
+    looks_like_header,
+    read_tabular,
+    rows_from_markdown,
+)
 
 DOMAIN = "fonduri-ue.ro"
 CDX_API = "https://web.archive.org/cdx/search/cdx"
@@ -58,6 +65,11 @@ DOCUMENT_SUFFIXES = (".pdf", ".xlsx", ".xls")
 #: Plafon de pagini per PDF. Peste el, citirea devine mai scumpă decât valoarea
 #: rândurilor în plus, iar rularea lunară trebuie să se termine.
 MAX_PDF_PAGES = int(os.environ.get("REGISTRU_PAGINI_PDF", "150"))
+
+#: Se schimbă când se schimbă felul în care se citesc fișierele. Intră în cheia
+#: de cache, altfel o corectură a parserului nu s-ar vedea niciodată: fișierul
+#: are aceeași amprentă, deci ar fi citit din rezultatul vechi, greșit.
+PARSER_VERSION = 5
 
 PROGRAM_PATTERN = re.compile(
     r"\b(poim|pocu|poca|poat|poad|por|poc|pcidif|pocidif|regio|podca)\b", re.IGNORECASE
@@ -202,7 +214,7 @@ class FonduriUe:
         schimbă niciodată. Cheia este SHA-256, deci un fișier nou reparsează,
         unul vechi nu.
         """
-        cache = INTERIM_DIR / "cache" / f"{entry.sha256[:16]}.parquet"
+        cache = INTERIM_DIR / "cache" / f"v{PARSER_VERSION}-{entry.sha256[:16]}.parquet"
         if cache.exists():
             return pl.read_parquet(cache)
         raw = read_pdf(path) if path.suffix.lower() == ".pdf" else read_tabular(path)
@@ -235,8 +247,6 @@ class FonduriUe:
         if raw is None or raw.height == 0:
             return None
 
-        from registru.headers import map_columns
-
         mapping = map_columns(raw.columns)
         if "beneficiary_name" not in mapping.values():
             return None
@@ -259,18 +269,110 @@ class FonduriUe:
         )
         # Numele fișierului spune rar programul; calea originală îl spune
         # aproape întotdeauna: /images/files/programe/POIM/2024/...
+        inainte = frame.height
+        frame = clean_frame(frame)
+
+        # Un fișier de proiecte are coduri de proiect. Când majoritatea rândurilor
+        # nu au unul, coloanele nu au fost citite corect, oricât de plauzibil ar
+        # arăta restul — de obicei titlul proiectului a ajuns în coloana
+        # beneficiarului. Regula este aspră dinadins: registrul acesta poate să
+        # aibă mai puține rânduri, dar nu are voie să aibă rânduri greșite.
+        if "project_code" in frame.columns and frame.height:
+            cu_cod = frame.filter(
+                pl.col("project_code").cast(pl.Utf8, strict=False).str.contains(r"^\s*\d{4,7}\s*$")
+            ).height
+            if cu_cod < frame.height * 0.6:
+                print(
+                    f"  ! {Path(entry.path).name}: doar {cu_cod}/{frame.height} rânduri au cod "
+                    "de proiect, fișierul se ignoră",
+                    flush=True,
+                )
+                return None
+        elif "project_code" not in frame.columns:
+            print(
+                f"  ! {Path(entry.path).name}: fără coloană de cod, fișierul se ignoră", flush=True
+            )
+            return None
+        # Dacă mai bine de o treime din rânduri cad la validare, fișierul nu a
+        # fost citit corect — de obicei un PDF ale cărui coloane `pdfplumber`
+        # nu le poate rezolva. Mai bine lipsește decât să intre greșit.
+        if inainte and frame.height < inainte * 0.66:
+            print(
+                f"  ! {Path(entry.path).name}: doar {frame.height}/{inainte} rânduri valide, "
+                "fișierul se ignoră",
+                flush=True,
+            )
+            return None
+
         program = entry.dataset
         if program == "necunoscut":
             program = _program(entry.meta.get("original_url") or "") or _program(entry.path)
         if program and "program" not in frame.columns:
             frame = frame.with_columns(pl.lit(program).alias("program"))
-        return conform(clean_frame(frame))
+        return conform(frame)
 
 
 # ---------------------------------------------------------------------- PDF
 
 
+def usable_rows(frame: pl.DataFrame | None) -> int:
+    """Câte rânduri ale unui tabel brut ajung rânduri de registru.
+
+    Măsura este aceeași pe care o folosește și validarea de mai târziu: coloane
+    recunoscute, plus rânduri care trec de curățare. Servește la a alege între
+    două citiri ale aceluiași fișier.
+    """
+    if frame is None or frame.height == 0:
+        return 0
+    mapping = map_columns(frame.columns)
+    if "beneficiary_name" not in mapping.values():
+        return 0
+    renamed = frame.rename(mapping).select(list(mapping.values()))
+    return clean_frame(renamed).height
+
+
 def read_pdf(path: Path, max_pages: int = MAX_PDF_PAGES) -> pl.DataFrame | None:
+    """Tabelul dintr-un PDF, citit în două feluri; câștigă cel cu mai multe rânduri.
+
+    Niciunul nu este mai bun peste tot. anydoc convertește tot documentul
+    deodată, deci nu decalează coloanele când o pagină are una în minus — dar
+    unește celule pe care `pdfplumber` le ține separate, iar atunci coloana
+    beneficiarului dispare. Fiind vorba de 40 de PDF-uri făcute de mâini
+    diferite, alegerea se face pe fișier, măsurat, nu presupus.
+
+    Costul este că se citește de două ori. Se plătește o singură dată: cache-ul
+    este pe amprenta fișierului.
+    """
+    prin_anydoc = _read_pdf_anydoc(path)
+    scor_anydoc = usable_rows(prin_anydoc)
+
+    prin_plumber = _read_pdf_plumber(path, max_pages)
+    scor_plumber = usable_rows(prin_plumber)
+
+    print(f"  · {path.name}: anydoc {scor_anydoc} rânduri, pdfplumber {scor_plumber}", flush=True)
+    if scor_anydoc == 0 and scor_plumber == 0:
+        return prin_anydoc if prin_anydoc is not None else prin_plumber
+    return prin_anydoc if scor_anydoc >= scor_plumber else prin_plumber
+
+
+def _read_pdf_anydoc(path: Path) -> pl.DataFrame | None:
+    """anydoc convertește tot documentul deodată, deci coloanele nu se decalează.
+
+    Rulează local, fără cheie și fără dependențe de sistem. Nu are OCR: un PDF
+    scanat nu are strat de text, iar anydoc refuză, în loc să ghicească.
+    """
+    import anydoc
+
+    try:
+        data = path.read_bytes()
+        markdown = anydoc.to_markdown_bytes(data, anydoc.format_from_bytes(data) or "pdf")
+    except Exception as error:  # noqa: BLE001 — se încearcă cealaltă cale
+        print(f"  ~ {path.name}: anydoc: {type(error).__name__}: {error}", flush=True)
+        return None
+    return frame_from_rows(rows_from_markdown(markdown))
+
+
+def _read_pdf_plumber(path: Path, max_pages: int = MAX_PDF_PAGES) -> pl.DataFrame | None:
     """Tabelul dintr-un PDF, adunat din toate paginile.
 
     Antetul apare o singură dată, de obicei pe a doua pagină, pentru că prima
@@ -285,6 +387,8 @@ def read_pdf(path: Path, max_pages: int = MAX_PDF_PAGES) -> pl.DataFrame | None:
     import pdfplumber
 
     header: list[str] | None = None
+    width = 0
+    sarite = 0
     rows: list[list[str]] = []
     with pdfplumber.open(path) as pdf:
         if len(pdf.pages) > max_pages:
@@ -300,12 +404,24 @@ def read_pdf(path: Path, max_pages: int = MAX_PDF_PAGES) -> pl.DataFrame | None:
                     frame = frame_from_rows([[_text(c) for c in row] for row in table])
                     if frame is not None:
                         header = list(frame.columns)
+                        width = len(table[0])
                         rows.extend([list(row) for row in frame.iter_rows()])
+                    continue
+                # Coloanele unei pagini trebuie să fie tot atâtea ca ale paginii
+                # cu antetul. `pdfplumber` detectează coloanele per pagină, iar
+                # o pagină cu o coloană în minus ar decala tot ce urmează:
+                # titlul proiectului ar ajunge în coloana beneficiarului, iar
+                # data contractului în cea de cod. Mai bine lipsesc rânduri
+                # decât să fie greșite, dar tăcerea nu e acceptabilă.
+                if len(table[0]) != width:
+                    sarite += 1
                     continue
                 for row in table:
                     values = [_text(cell) for cell in row]
-                    if any(values):
+                    if any(values) and not looks_like_header(values):
                         rows.append(values[: len(header)] + [""] * max(0, len(header) - len(row)))
+    if sarite:
+        print(f"  ! {path.name}: {sarite} pagini sărite, alt număr de coloane", flush=True)
     if not header or not rows:
         return None
     width = len(header)

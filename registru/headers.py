@@ -14,6 +14,8 @@ from registru.text import normalize_header
 #: câmp canonic -> antete întâlnite în fișiere, în ordinea preferinței.
 HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
     "project_code": (
+        "smis code",
+        "project code",
         "cod smis",
         "codsmis",
         "cod smis proiect",
@@ -26,6 +28,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "cod apel",
     ),
     "beneficiary_name": (
+        "beneficiary name",
+        "beneficiary",
         "beneficiar",
         "denumire beneficiar",
         "nume beneficiar",
@@ -42,6 +46,7 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "cui cif",
     ),
     "project_title": (
+        "project title",
         "titlu proiect",
         "denumire proiect",
         "titlul proiectului",
@@ -51,6 +56,7 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "denumirea operatiunii",
     ),
     "project_summary": (
+        "project summary",
         "rezumat",
         "obiectivul proiectului",
         "scopul operatiunii",
@@ -59,6 +65,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "sinteza proiectului",
     ),
     "start_date": (
+        "project start date",
+        "start date",
         "data inceput",
         "data de incepere",
         "data inceput proiect",
@@ -66,6 +74,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "data de start",
     ),
     "end_date": (
+        "project end date",
+        "end date",
         "data sfarsit",
         "data de finalizare",
         "data finalizare",
@@ -73,6 +83,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "data de incheiere",
     ),
     "total_eligible_amount": (
+        "total eligible value",
+        "eligible value",
         "valoarea eligibila a proiectului",
         "valoare eligibila a proiectului",
         "valoare totala eligibila",
@@ -81,6 +93,7 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "valoare eligibila",
     ),
     "total_project_amount": (
+        "total project value",
         "total valoare proiect",
         "valoarea totala a proiectului",
         "valoare totala proiect",
@@ -93,6 +106,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
     ),
     "beneficiary_type": ("tip beneficiar", "tipul beneficiarului"),
     "eu_amount": (
+        "eu funds",
+        "eu contribution",
         "valoare ue",
         "contributie ue",
         "finantare ue",
@@ -102,6 +117,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "fonduri ue",
     ),
     "cofinancing_rate": (
+        "eu co financing rate",
+        "co financing rate",
         "rata de cofinantare",
         "procent cofinantare",
         "rata cofinantare ue",
@@ -122,10 +139,16 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "domeniu de interventie",
         "cod domeniu de interventie",
     ),
-    "region": ("regiune", "regiunea", "regiune de dezvoltare"),
-    "county": ("judet", "judetul", "judet implementare"),
+    "region": ("regiune", "regiunea", "regiune de dezvoltare", "region"),
+    "county": ("judet", "judetul", "judet implementare", "county"),
     "locality": ("localitate", "localitatea", "uat", "oras", "comuna"),
-    "project_status": ("stadiu", "stare proiect", "status", "stadiu implementare"),
+    "project_status": (
+        "stadiu",
+        "stare proiect",
+        "status",
+        "stadiu implementare",
+        "project status",
+    ),
     "currency": ("moneda", "valuta"),
 }
 

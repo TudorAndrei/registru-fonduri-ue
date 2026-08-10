@@ -28,7 +28,7 @@ import httpx
 import polars as pl
 import wayback
 
-from registru.config import HTTP_TIMEOUT, RAW_DIR, USER_AGENT
+from registru.config import HTTP_TIMEOUT, INTERIM_DIR, RAW_DIR, USER_AGENT
 from registru.schema import conform, empty_frame
 from registru.sources.base import FetchedFile, now_iso, read_manifest, sha256_file, write_manifest
 from registru.tabular import clean_frame, frame_from_rows, read_tabular
@@ -54,6 +54,10 @@ EXCLUDE_PATTERN = re.compile(
 )
 
 DOCUMENT_SUFFIXES = (".pdf", ".xlsx", ".xls")
+
+#: Plafon de pagini per PDF. Peste el, citirea devine mai scumpă decât valoarea
+#: rândurilor în plus, iar rularea lunară trebuie să se termine.
+MAX_PDF_PAGES = int(os.environ.get("REGISTRU_PAGINI_PDF", "150"))
 
 PROGRAM_PATTERN = re.compile(
     r"\b(poim|pocu|poca|poat|poad|por|poc|pcidif|pocidif|regio|podca)\b", re.IGNORECASE
@@ -190,6 +194,23 @@ class FonduriUe:
             return empty_frame()
         return pl.concat(frames, how="vertical_relaxed")
 
+    def _parsed(self, entry: FetchedFile, path: Path) -> pl.DataFrame | None:
+        """Rândurile brute ale unui fișier, memorate pe amprenta lui.
+
+        Un PDF de 38 de pagini ia zeci de secunde cu `pdfplumber`, iar rularea
+        lunară l-ar reciti de fiecare dată degeaba: fișierele descărcate nu se
+        schimbă niciodată. Cheia este SHA-256, deci un fișier nou reparsează,
+        unul vechi nu.
+        """
+        cache = INTERIM_DIR / "cache" / f"{entry.sha256[:16]}.parquet"
+        if cache.exists():
+            return pl.read_parquet(cache)
+        raw = read_pdf(path) if path.suffix.lower() == ".pdf" else read_tabular(path)
+        if raw is not None and raw.height:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            raw.write_parquet(cache)
+        return raw
+
     def _manual(self):
         """Fișierele puse de mână, pentru ce nu este în arhivă."""
         folder = RAW_DIR / self.id / "manual"
@@ -210,7 +231,7 @@ class FonduriUe:
             )
 
     def _extract_file(self, entry: FetchedFile, path: Path) -> pl.DataFrame | None:
-        raw = read_pdf(path) if path.suffix.lower() == ".pdf" else read_tabular(path)
+        raw = self._parsed(entry, path)
         if raw is None or raw.height == 0:
             return None
 
@@ -249,18 +270,28 @@ class FonduriUe:
 # ---------------------------------------------------------------------- PDF
 
 
-def read_pdf(path: Path, max_pages: int = 400) -> pl.DataFrame | None:
+def read_pdf(path: Path, max_pages: int = MAX_PDF_PAGES) -> pl.DataFrame | None:
     """Tabelul dintr-un PDF, adunat din toate paginile.
 
     Antetul apare o singură dată, de obicei pe a doua pagină, pentru că prima
     poartă bannerul. Se caută în primele pagini, apoi restul paginilor sunt
     tratate ca rânduri de date.
+
+    `pdfplumber` face analiză de aspect pentru fiecare pagină, deci un PDF de
+    câteva sute de pagini ia minute. De aceea există un plafon — și de aceea
+    plafonul anunță când taie: o listă trunchiată în tăcere arată exact ca una
+    completă.
     """
     import pdfplumber
 
     header: list[str] | None = None
     rows: list[list[str]] = []
     with pdfplumber.open(path) as pdf:
+        if len(pdf.pages) > max_pages:
+            print(
+                f"  ! {path.name}: {len(pdf.pages)} pagini, se citesc primele {max_pages}",
+                flush=True,
+            )
         for page in pdf.pages[:max_pages]:
             for table in page.extract_tables():
                 if not table:

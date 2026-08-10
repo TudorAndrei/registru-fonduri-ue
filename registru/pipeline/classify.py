@@ -46,6 +46,17 @@ KEYWORDS: dict[str, tuple[str, float]] = {
     "hub de inovare digitala": ("digitalizare", 0.6),
     "interoperabilitate": ("digitalizare", 0.6),
     "prelucrarea datelor": ("cdi", 0.55),
+    # Familia PoCIDIF: „Dezvoltarea de noi servicii/aplicații/produse prin
+    # inovare și adoptarea de tehnologii avansate”. Fiecare bucată e slabă
+    # singură — „aplicații” poate fi orice — dar două împreună trec pragul.
+    # Formularea proprie familiei: „servicii/aplicații/produse”, care după
+    # normalizare devine „servicii aplicatii produse”. E precisă, deci cântărește
+    # mult. „Aplicații” singur rămâne slab: poate fi orice fel de aplicație.
+    "servicii aplicatii produse": ("produs", 0.8),
+    "aplicatii": ("produs", 0.5),
+    "platforme informatice": ("produs", 0.8),
+    "tehnologii avansate": ("cdi", 0.5),
+    "inovare digitala": ("cdi", 0.6),
     "transformare digitala": ("digitalizare", 0.7),
     "erp": ("digitalizare", 0.75),
     "crm": ("digitalizare", 0.75),
@@ -88,6 +99,9 @@ WEIGHT_INTERVENTION = 0.35
 # Calibrat astfel încât un titlu explicit („platformă software”, „digitalizare”,
 # „ERP”) să treacă singur pragul, dar un cuvânt slab („cloud”, „API”) să nu.
 WEIGHT_TEXT = 0.75
+
+#: Cât adaugă al doilea indiciu din text, ca fracție din greutatea lui.
+SECOND_HINT = 0.4
 
 #: Peste acest scor, rândul intră în vederea „software” a registrului.
 THRESHOLD = 0.5
@@ -158,13 +172,20 @@ def score_row(
             evidence.append(f"intervenție {code}")
 
     if text:
-        best = 0.0
+        hits: list[float] = []
         for keyword, (label, weight) in KEYWORDS.items():
             if _PATTERNS[keyword].search(text):
                 labels[label] = labels.get(label, 0) + weight
-                best = max(best, weight)
+                hits.append(weight)
                 evidence.append(keyword)
-        score += WEIGHT_TEXT * best
+        # Cel mai puternic indiciu, plus o parte din al doilea. Două indicii
+        # moderate și independente spun mai mult decât unul singur: „aplicații”
+        # poate fi orice, „tehnologii avansate” la fel, dar împreună descriu un
+        # apel de produs. Al treilea nu mai adaugă: e de obicei același lucru
+        # spus altfel.
+        hits.sort(reverse=True)
+        if hits:
+            score += WEIGHT_TEXT * (hits[0] + SECOND_HINT * (hits[1] if len(hits) > 1 else 0.0))
         for keyword, penalty in NEGATIVE.items():
             if _NEGATIVE_PATTERNS[keyword].search(text):
                 score -= penalty

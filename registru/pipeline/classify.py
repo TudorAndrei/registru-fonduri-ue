@@ -103,6 +103,13 @@ WEIGHT_TEXT = 0.75
 #: Cât adaugă al doilea indiciu din text, ca fracție din greutatea lui.
 SECOND_HINT = 0.4
 
+#: Cât cântărește apropierea de înțeles, când modelul este instalat. Calibrat
+#: astfel încât un semnal hotărât (peste 0,83) să treacă pragul singur, iar unul
+#: moderat să aibă nevoie și de o potrivire de cuvânt. Modelul aduce acoperirea
+#: pe care lista de cuvinte nu o poate avea, dar marginea lui de separare este
+#: subțire, deci nu i se dă ultimul cuvânt pe nimic.
+WEIGHT_SEMANTIC = 0.6
+
 #: Peste acest scor, rândul intră în vederea „software” a registrului.
 THRESHOLD = 0.5
 
@@ -196,6 +203,33 @@ def score_row(
     return Verdict(round(score, 3), label, "; ".join(evidence[:8]))
 
 
+def _with_semantic(verdicts: list[Verdict], texte: list[str]) -> list[Verdict]:
+    """Adaugă semnalul de înțeles peste verdictele date de vocabular.
+
+    Dacă modelul nu este instalat, verdictele rămân cum sunt: registrul se
+    construiește la fel, doar cu acoperire mai mică.
+    """
+    from registru import semantic
+
+    if not semantic.disponibil():
+        return verdicts
+
+    adaugat = []
+    for verdict, scor in zip(verdicts, semantic.scoruri(texte), strict=True):
+        if scor <= 0:
+            adaugat.append(verdict)
+            continue
+        motiv = f"înțeles {scor:.2f}"
+        adaugat.append(
+            Verdict(
+                round(min(1.0, verdict.score + WEIGHT_SEMANTIC * scor), 3),
+                verdict.label if verdict.label != "necunoscut" else "digitalizare",
+                "; ".join(filter(None, [verdict.evidence, motiv])),
+            )
+        )
+    return adaugat
+
+
 def classify(frame: pl.DataFrame) -> pl.DataFrame:
     """Adaugă `software_score`, `software_label`, `software_evidence`, `is_software`."""
     if frame.height == 0:
@@ -214,6 +248,13 @@ def classify(frame: pl.DataFrame) -> pl.DataFrame:
         )
         for row in frame.select(columns).to_dicts()
     ]
+    verdicts = _with_semantic(
+        verdicts,
+        [
+            f"{row['project_title'] or ''} {row['project_summary'] or ''}".strip()
+            for row in frame.select("project_title", "project_summary").to_dicts()
+        ],
+    )
     return frame.with_columns(
         pl.Series("software_score", [v.score for v in verdicts], dtype=pl.Float64),
         pl.Series("software_label", [v.label for v in verdicts], dtype=pl.Utf8),
@@ -253,6 +294,7 @@ def classify_calls(frame: pl.DataFrame) -> pl.DataFrame:
                 "; ".join(filter(None, ["domeniu: Digitalizare", verdict.evidence])),
             )
         verdicts.append(verdict)
+    verdicts = _with_semantic(verdicts, frame["title"].fill_null("").to_list())
     return frame.with_columns(
         pl.Series("software_score", [v.score for v in verdicts], dtype=pl.Float64),
         pl.Series("software_label", [v.label for v in verdicts], dtype=pl.Utf8),

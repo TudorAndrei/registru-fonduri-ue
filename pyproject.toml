@@ -24,6 +24,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dashboard = ["reflex>=0.9.8"]
+clasificare = [
+    "fastembed>=0.8.0",
+]
 
 [project.scripts]
 registru = "registru.cli:app"

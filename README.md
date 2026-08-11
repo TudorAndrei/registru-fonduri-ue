@@ -123,9 +123,9 @@ dashboard   -> reflex run --env prod  servește interfața, nu scrie nimic
 volum       -> /data                  fișiere descărcate, registre, jurnal
 ```
 
-În Coolify: **New Resource → Public Repository**, apoi la **Build Pack** alege **Docker Compose**. Implicit este Nixpacks, care ar ghici o singură aplicație Python și ar porni-o pe ea — aici sunt două servicii care împart un volum. Restul câmpurilor rămân cum sunt: ramura `main`, „Base Directory” `/`, „Docker Compose Location” `/docker-compose.yml`. Câmpul de port dispare odată cu schimbarea: porturile vin din fișier.
+În Coolify: **New Resource → Public Repository**, apoi la **Build Pack** alege **Docker Compose**. Implicit este Nixpacks, care ar ghici o singură aplicație Python și ar porni-o pe ea — aici sunt două servicii care împart un volum. Restul câmpurilor rămân cum sunt: ramura `main`, „Base Directory” `/`, „Docker Compose Location” `/docker-compose.yaml` — fișierul poartă extensia `.yaml` tocmai ca să se potrivească cu ce completează Coolify singur. Câmpul de port dispare odată cu schimbarea: porturile vin din fișier.
 
-Domeniul se pune pe serviciul **`dashboard`**. Portul nu trebuie ales din interfață, fiindcă îl declară [variabila magică](https://coolify.io/docs/knowledge-base/docker/compose) `SERVICE_FQDN_DASHBOARD_3000` din `docker-compose.yml`. Acele variabile se **declară fără valoare** — atunci le generează Coolify și, pentru FQDN, configurează și rutarea. `SERVICE_URL_` dă adresa cu tot cu `https://`, de care are nevoie Reflex; `SERVICE_FQDN_` o dă fără.
+Domeniul se pune pe serviciul **`dashboard`**. Portul nu trebuie ales din interfață, fiindcă îl declară [variabila magică](https://coolify.io/docs/knowledge-base/docker/compose) `SERVICE_FQDN_DASHBOARD_3000` din `docker-compose.yaml`. Acele variabile se **declară fără valoare** — atunci le generează Coolify și, pentru FQDN, configurează și rutarea. `SERVICE_URL_` dă adresa cu tot cu `https://`, de care are nevoie Reflex; `SERVICE_FQDN_` o dă fără.
 
 În modul `prod`, Reflex servește interfața și partea de server pe același port, deci este un singur domeniu de configurat.
 

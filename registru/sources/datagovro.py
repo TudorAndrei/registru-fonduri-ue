@@ -75,12 +75,20 @@ class DataGovRo:
                 if limit is not None:
                     resources = resources[:limit]
                 for resource in resources:
-                    fetched.append(self._fetch_resource(client, dataset, resource))
+                    url = _download_url(resource)
+                    if url is None:
+                        # În setul MIPE există o resursă cu ambele adrese goale.
+                        # Șirul gol ajunge `/` în httpx, iar acolo crapă.
+                        print(f"  ! resursă fără adresă: {resource.get('id')}", flush=True)
+                        continue
+                    try:
+                        fetched.append(self._fetch_resource(client, dataset, resource, url))
+                    except Exception as error:  # noqa: BLE001 — un fișier nu oprește restul
+                        print(f"  ! {url[:70]}: {type(error).__name__}: {error}", flush=True)
         write_manifest(self.id, fetched)
         return fetched
 
-    def _fetch_resource(self, client, dataset: str, resource: dict) -> FetchedFile:
-        url = resource.get("datagovro_download_url") or resource["url"]
+    def _fetch_resource(self, client, dataset: str, resource: dict, url: str) -> FetchedFile:
         suffix = Path(url.split("?")[0]).suffix or f".{(resource.get('format') or 'bin').lower()}"
         relative = Path(self.id) / dataset / f"{resource['id']}{suffix}"
         target = RAW_DIR / relative
@@ -153,6 +161,20 @@ class DataGovRo:
 
 
 # --------------------------------------------------------------------- utile
+
+
+def _download_url(resource: dict) -> str | None:
+    """Adresa de descărcare a unei resurse CKAN, dacă are una utilizabilă.
+
+    Portalul are câmpuri de adresă goale la unele resurse, iar altele conțin
+    căi relative. Amândouă trebuie sărite: o cale relativă nu se poate descărca
+    fără o bază, iar un șir gol ajunge `/` în httpx și oprește toată sursa.
+    """
+    for candidat in (resource.get("datagovro_download_url"), resource.get("url")):
+        text = str(candidat or "").strip()
+        if text.startswith(("http://", "https://")):
+            return text
+    return None
 
 
 def _program_from_name(name: str) -> str | None:

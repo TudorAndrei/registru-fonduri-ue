@@ -123,7 +123,11 @@ dashboard   -> reflex run --env prod  servește interfața, nu scrie nimic
 volum       -> /data                  fișiere descărcate, registre, jurnal
 ```
 
-În Coolify: **New Resource → Docker Compose**, indică depozitul. Domeniul se pune pe serviciul `dashboard`, portul **3000**. În modul `prod`, Reflex servește interfața și partea de server pe același port, deci este un singur domeniu de configurat.
+În Coolify: **New Resource → Public Repository**, apoi la **Build Pack** alege **Docker Compose**. Implicit este Nixpacks, care ar ghici o singură aplicație Python și ar porni-o pe ea — aici sunt două servicii care împart un volum. Restul câmpurilor rămân cum sunt: ramura `main`, „Base Directory” `/`, „Docker Compose Location” `/docker-compose.yml`. Câmpul de port dispare odată cu schimbarea: porturile vin din fișier.
+
+Domeniul se pune pe serviciul **`dashboard`**. Portul nu trebuie ales din interfață, fiindcă îl declară [variabila magică](https://coolify.io/docs/knowledge-base/docker/compose) `SERVICE_FQDN_DASHBOARD_3000` din `docker-compose.yml`. Acele variabile se **declară fără valoare** — atunci le generează Coolify și, pentru FQDN, configurează și rutarea. `SERVICE_URL_` dă adresa cu tot cu `https://`, de care are nevoie Reflex; `SERVICE_FQDN_` o dă fără.
+
+În modul `prod`, Reflex servește interfața și partea de server pe același port, deci este un singur domeniu de configurat.
 
 Variabile de mediu:
 
@@ -134,7 +138,9 @@ Variabile de mediu:
 | `REGISTRU_DETALII_APEL` | `6000` | Câte fișe de apel se descarcă la o rulare. |
 | `REGISTRU_FIRE` | `6` | Câte descărcări în paralel. Mic dinadins. |
 
-Prima pornire: containerul `scheduler` vede că nu există registru și rulează imediat, ca să nu aștepți până la 1 ale lunii ca să afli dacă merge. Prima rulare durează ~15 minute, aproape tot în descărcarea fișelor de apel; următoarele iau doar ce s-a schimbat.
+Prima pornire, ca să nu pară blocată: containerul `scheduler` vede volumul gol și rulează imediat, în loc să aștepte până la 1 ale lunii ca să afli dacă merge. Durează 45-60 de minute — descărcarea celor 5.233 de fișe de apel, arhiva, și parsarea PDF-urilor. Rulările următoare iau doar ce s-a schimbat, fiindcă parsarea se memorează pe amprenta fișierului. În paralel, `dashboard` își compilează interfața la prima pornire, de unde `start_period` de 300 de secunde în healthcheck; până termină schedulerul, va arăta gol.
+
+Volumul are nevoie de câțiva GB: datele brute ajung la ~350 MB, iar modelul de clasificare mai descarcă 0,22 GB la prima rulare.
 
 Fără Coolify:
 

@@ -1,10 +1,15 @@
 # Stack pentru Coolify: două servicii, aceeași imagine, același volum.
 #
-# În Coolify: „New Resource” -> „Docker Compose”, indică depozitul acesta.
-# Domeniul se pune pe serviciul `dashboard`, portul 3000.
+# În Coolify: „New Resource” -> „Public Repository”, iar la **Build Pack** alege
+# **Docker Compose**, nu Nixpacks. Nixpacks ar ghici o singură aplicație Python
+# și ar porni-o pe ea; aici sunt două servicii care împart un volum.
+#
+# Domeniul se pune pe serviciul `dashboard`. Nu trebuie ales portul din
+# interfață: îl declară `SERVICE_FQDN_DASHBOARD_3000` mai jos.
 
 services:
   # Aduce datele și reconstruiește registrul, o dată pe lună.
+  # Nu are domeniu: nu ascultă pe niciun port, doar scrie în volum.
   scheduler:
     build:
       context: .
@@ -13,8 +18,8 @@ services:
     environment:
       # Ziua 1 a lunii, 03:00 UTC. Sursele naționale publică trimestrial,
       # deci mai des nu are ce să aducă.
-      REGISTRU_CRON: ${REGISTRU_CRON:-0 3 1 * *}
-      REGISTRU_DATA_DIR: /data
+      - REGISTRU_CRON=${REGISTRU_CRON:-0 3 1 * *}
+      - REGISTRU_DATA_DIR=/data
     volumes:
       - registru-data:/data
 
@@ -25,12 +30,21 @@ services:
       target: dashboard
     restart: unless-stopped
     environment:
-      REGISTRU_DATA_DIR: /data
-      # Coolify completează variabila cu domeniul pe care îl alocă. În modul
-      # `prod` interfața și partea de server stau pe același port, deci este
-      # un singur domeniu de configurat.
-      API_URL: ${SERVICE_FQDN_DASHBOARD_3000:-http://localhost:3000}
-    ports:
+      # Variabilele „magice” ale Coolify se **declară**, fără valoare: atunci
+      # le generează el și, pentru FQDN, configurează și rutarea către portul
+      # din nume. Numele se formează din numele serviciului, cu majuscule.
+      # https://coolify.io/docs/knowledge-base/docker/compose
+      - SERVICE_FQDN_DASHBOARD_3000
+      - SERVICE_URL_DASHBOARD_3000
+      - REGISTRU_DATA_DIR=/data
+      # Reflex are nevoie de adresa completă, cu schemă, ca interfața să știe
+      # unde este partea de server. `SERVICE_URL_` o dă cu tot cu `https://`;
+      # `SERVICE_FQDN_` ar da-o fără. Valoarea de rezervă este pentru
+      # `docker compose up` pe calculatorul propriu, fără Coolify.
+      - API_URL=${SERVICE_URL_DASHBOARD_3000:-http://localhost:3000}
+    # `expose`, nu `ports`: portul nu se publică pe gazdă, doar îl vede
+    # proxy-ul Coolify. Pe gazdă ar ocupa un port la întâmplare, degeaba.
+    expose:
       - "3000"
     volumes:
       - registru-data:/data
@@ -38,4 +52,7 @@ services:
       - scheduler
 
 volumes:
+  # Aici stau fișierele descărcate, registrele și jurnalul rulărilor. Fără
+  # volum, fiecare redesfășurare ar reporni colectarea de la zero: 5.233 de
+  # fișe de apel, arhiva și parsarea PDF-urilor, adică aproape o oră.
   registru-data:

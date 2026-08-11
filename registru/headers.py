@@ -93,6 +93,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "valoare eligibila",
     ),
     "total_project_amount": (
+        "total value of the project",
+        "total project value",
         "total project value",
         "total valoare proiect",
         "valoarea totala a proiectului",
@@ -100,11 +102,13 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "valoare totala",
     ),
     "payments_amount": (
+        "payments to beneficiaries",
+        "plati catre beneficiari lei",
         "plati catre beneficiari",
         "plati efectuate",
         "valoare plati",
     ),
-    "beneficiary_type": ("tip beneficiar", "tipul beneficiarului"),
+    "beneficiary_type": ("tip beneficiar", "tipul beneficiarului", "beneficiary type"),
     "eu_amount": (
         "eu funds",
         "eu contribution",
@@ -117,6 +121,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
         "fonduri ue",
     ),
     "cofinancing_rate": (
+        "union co financing rate",
+        "union cofinancing rate",
         "eu co financing rate",
         "co financing rate",
         "rata de cofinantare",
@@ -126,6 +132,8 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
     "fund": ("fond", "fondul", "sursa de finantare"),
     "program": ("program", "program operational", "denumire program", "po"),
     "specific_objective": (
+        "priority axis investment priority",
+        "priority axis",
         "obiectiv specific",
         "os",
         "prioritate",
@@ -141,7 +149,7 @@ HEADER_SYNONYMS: dict[str, tuple[str, ...]] = {
     ),
     "region": ("regiune", "regiunea", "regiune de dezvoltare", "region"),
     "county": ("judet", "judetul", "judet implementare", "county"),
-    "locality": ("localitate", "localitatea", "uat", "oras", "comuna"),
+    "locality": ("localitate", "localitatea", "uat", "oras", "comuna", "locality"),
     "project_status": (
         "stadiu",
         "stare proiect",

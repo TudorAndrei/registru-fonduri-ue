@@ -45,3 +45,48 @@ def normalize_geo(frame: pl.DataFrame) -> pl.DataFrame:
         pl.Series("counties", counties, dtype=pl.List(pl.Utf8)),
         pl.Series("regions", regions, dtype=pl.List(pl.Utf8)),
     )
+
+
+def derive_eu_amount(frame: pl.DataFrame) -> pl.DataFrame:
+    """Completează contribuția UE acolo unde autoritatea nu a publicat-o.
+
+    Rata de cofinanțare este publicată în 99% din rânduri, iar suma UE este
+    produsul ei cu cheltuiala eligibilă — asta spune regulamentul. Rezultatul
+    stă în `eu_amount_derived`, nu în `eu_amount`, iar `eu_amount_source` spune
+    de fiecare dată care este care. Cine adună trebuie să știe ce adună.
+
+    Rata vine când ca procent (85), când ca fracție (0,85); se aduce la fracție.
+    """
+    if frame.height == 0 or "cofinancing_rate" not in frame.columns:
+        return frame
+
+    # Rata vine când ca procent (85), când ca fracție (0,85). Peste 100 sau sub
+    # zero nu este o rată, ci o coloană citită greșit — sunt 158 de rânduri cu
+    # valori până la 8.580. Acelea nu se folosesc.
+    bruta = pl.col("cofinancing_rate")
+    valida = (bruta > 0) & (bruta <= 100)
+    rata = pl.when(~valida).then(None).when(bruta > 1).then(bruta / 100).otherwise(bruta)
+    calculat = (pl.col("total_eligible_amount") * rata).round(2)
+    # Invariantul care nu poate fi încălcat: contribuția Uniunii este o parte
+    # din cheltuiala eligibilă, deci nu o poate depăși. Ce iese mai mare vine
+    # dintr-o rată greșită, oricât de plauzibilă ar părea.
+    calculat = pl.when(calculat > pl.col("total_eligible_amount")).then(None).otherwise(calculat)
+
+    combinat = pl.coalesce(pl.col("eu_amount"), calculat)
+    # Invariantul se aplică și sumelor publicate. O valoare mai mare decât
+    # cheltuiala eligibilă nu devine corectă pentru că a tipărit-o autoritatea:
+    # înseamnă că acea coloană nu conține ce scrie în capul ei.
+    peste = combinat > pl.col("total_eligible_amount")
+    combinat = pl.when(peste).then(None).otherwise(combinat)
+
+    return frame.with_columns(
+        combinat.alias("eu_amount_derived"),
+        pl.when(peste)
+        .then(pl.lit(None, dtype=pl.Utf8))
+        .when(pl.col("eu_amount").is_not_null())
+        .then(pl.lit("publicat"))
+        .when(calculat.is_not_null())
+        .then(pl.lit("calculat"))
+        .otherwise(pl.lit(None, dtype=pl.Utf8))
+        .alias("eu_amount_source"),
+    )

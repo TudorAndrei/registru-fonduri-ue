@@ -27,7 +27,7 @@ ART49_FIELDS: dict[str, PolarsType] = {
     "end_date": pl.Date,  # data de sfârșit
     "total_eligible_amount": pl.Float64,  # cheltuiala eligibilă totală
     "total_project_amount": pl.Float64,  # valoarea totală, eligibil plus neeligibil
-    "eu_amount": pl.Float64,  # contribuția Uniunii
+    "eu_amount": pl.Float64,  # contribuția Uniunii, așa cum a publicat-o autoritatea
     "payments_amount": pl.Float64,  # plăți efectuate către beneficiar
     "currency": pl.Utf8,
     "cofinancing_rate": pl.Float64,  # rata de cofinanțare
@@ -64,6 +64,12 @@ PROVENANCE_FIELDS: dict[str, PolarsType] = {
 DERIVED_FIELDS: dict[str, PolarsType] = {
     # `county` și `region` sunt text liber în fișierele oficiale; acestea sunt
     # variantele parsate pe lista închisă din `registru.geo`.
+    # Contribuția UE calculată din rata de cofinanțare, pentru rândurile unde
+    # autoritatea nu a publicat suma. Stă separat de `eu_amount` dinadins: una
+    # este publicată, cealaltă este dedusă, iar registrul nu are voie să le
+    # amestece.
+    "eu_amount_derived": pl.Float64,
+    "eu_amount_source": pl.Utf8,  # "publicat" | "calculat" | null
     "status": pl.Utf8,  # `project_status` adus la lista din `registru.status`
     "counties": pl.List(pl.Utf8),
     "regions": pl.List(pl.Utf8),

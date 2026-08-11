@@ -18,7 +18,7 @@ from registru.config import (
     ensure_dirs,
 )
 from registru.pipeline.classify import classify, classify_calls
-from registru.pipeline.normalize import normalize_geo, normalize_status_column
+from registru.pipeline.normalize import derive_eu_amount, normalize_geo, normalize_status_column
 from registru.schema import (
     CALLS_COLUMNS,
     REGISTRY_COLUMNS,
@@ -131,6 +131,7 @@ def build(source_ids: list[str] | None = None) -> pl.DataFrame:
     frame = deduplicate(frame)
     frame = normalize_geo(frame)
     frame = normalize_status_column(frame)
+    frame = derive_eu_amount(frame)
     frame = classify(frame)
     ordered = [*REGISTRY_COLUMNS, "beneficiary_key"]
     frame = frame.select([column for column in ordered if column in frame.columns])

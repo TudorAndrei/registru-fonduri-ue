@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import socket
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -65,20 +66,61 @@ def now_iso() -> str:
 #: Mai multe site-uri publice românești au adrese IPv6 (`mfe.gov.ro`,
 #: `oportunitati-ue.gov.ro`), iar un container fără rută IPv6 primește
 #: `[Errno 101] Network is unreachable` înainte să apuce să încerce IPv4.
-#: Legarea pe o adresă locală IPv4 rezolvă din prima cerere.
 FORTEAZA_IPV4 = os.environ.get("REGISTRU_IPV4", "1") not in {"0", "", "false"}
+
+_getaddrinfo_original = socket.getaddrinfo
+
+
+def _numai_ipv4(
+    host,
+    port,
+    family=0,
+    type=0,  # noqa: A002 — semnătura trebuie să fie a lui `socket.getaddrinfo`
+    proto=0,
+    flags=0,
+):
+    return _getaddrinfo_original(host, port, socket.AF_INET, type, proto, flags)
+
+
+def forteaza_ipv4() -> None:
+    """Face rezolvarea de nume să întoarcă numai adrese IPv4.
+
+    Prima încercare a fost `local_address="0.0.0.0"`, care leagă socket-ul pe
+    IPv4 — dar rezolvarea întorcea în continuare adrese IPv6, iar nepotrivirea
+    dădea `[Errno -9] Address family for hostname not supported`. Legarea
+    trebuie deci făcută la rezolvare, nu la socket.
+
+    Este o modificare la nivel de proces, dar procesul acesta nu face altceva
+    decât să descarce fișiere. Are și avantajul că prinde bibliotecile care nu
+    lasă transportul la vedere, cum e `wayback`, care merge pe `requests`.
+    """
+    if FORTEAZA_IPV4 and socket.getaddrinfo is not _numai_ipv4:
+        socket.getaddrinfo = _numai_ipv4  # ty: ignore[invalid-assignment]
+
+
+forteaza_ipv4()
 
 
 def transport() -> httpx.HTTPTransport:
-    return httpx.HTTPTransport(
-        local_address="0.0.0.0" if FORTEAZA_IPV4 else None,  # noqa: S104 — legare, nu ascultare
-        retries=2,
-    )
+    return httpx.HTTPTransport(retries=2)
 
 
-def http_client() -> httpx.Client:
+#: Antete de navigator, plus cine suntem. Kohesio întoarce 403 fără ele când
+#: cererea vine dintr-un centru de date, iar `oportunitati-ue.gov.ro` la fel.
+#: Nu ascundem nimic: `User-Agent` spune și numele proiectului, și adresa lui.
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        f"(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 {USER_AGENT}"
+    ),
+    "Accept": "application/json, text/html;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ro-RO,ro;q=0.9,en;q=0.8",
+}
+
+
+def http_client(headers: dict[str, str] | None = None) -> httpx.Client:
     return httpx.Client(
-        headers={"User-Agent": USER_AGENT},
+        headers={**BROWSER_HEADERS, **(headers or {})},
         timeout=HTTP_TIMEOUT,
         follow_redirects=True,
         transport=transport(),

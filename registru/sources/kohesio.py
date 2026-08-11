@@ -49,7 +49,7 @@ class Kohesio:
         """Salvează paginile de API ca JSON pe disc, ca orice altă dovadă."""
         fetched: list[FetchedFile] = []
         max_pages = limit if limit is not None else 10
-        with http_client() as client:
+        with http_client({"Referer": "https://kohesio.ec.europa.eu/en/"}) as client:
             for page in range(max_pages):
                 params = {"page": page, "size": PAGE_SIZE, "countryCode": self.country}
                 response = client.get(API, params=params)

@@ -30,7 +30,14 @@ import polars as pl
 
 from registru.config import HTTP_TIMEOUT, RAW_DIR, USER_AGENT
 from registru.schema import conform_calls, empty_calls
-from registru.sources.base import FetchedFile, now_iso, read_manifest, sha256_file, write_manifest
+from registru.sources.base import (
+    FetchedFile,
+    now_iso,
+    read_manifest,
+    sha256_file,
+    transport,
+    write_manifest,
+)
 
 BASE = "https://oportunitati-ue.gov.ro"
 API = f"{BASE}/wp-json/wp/v2"
@@ -74,6 +81,7 @@ def browser_client() -> httpx.Client:
         },
         timeout=HTTP_TIMEOUT,
         follow_redirects=True,
+        transport=transport(),
     )
 
 

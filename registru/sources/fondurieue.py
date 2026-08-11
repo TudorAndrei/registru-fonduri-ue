@@ -31,7 +31,14 @@ import wayback
 from registru.config import HTTP_TIMEOUT, INTERIM_DIR, RAW_DIR, USER_AGENT
 from registru.headers import map_columns
 from registru.schema import conform, empty_frame
-from registru.sources.base import FetchedFile, now_iso, read_manifest, sha256_file, write_manifest
+from registru.sources.base import (
+    FetchedFile,
+    now_iso,
+    read_manifest,
+    sha256_file,
+    transport,
+    write_manifest,
+)
 from registru.tabular import (
     clean_frame,
     frame_from_rows,
@@ -157,7 +164,8 @@ class FonduriUe:
         de instantanee, ceea ce ia zece minute. Biblioteca rămâne pentru
         descărcarea propriu-zisă, unde se ocupă de redirectări și de reîncercări.
         """
-        response = httpx.get(
+        client = httpx.Client(transport=transport(), follow_redirects=True)
+        response = client.get(
             CDX_API,
             params={
                 "url": f"{DOMAIN}/*",

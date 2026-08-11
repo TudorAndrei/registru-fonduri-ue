@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -61,11 +62,26 @@ def now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+#: Mai multe site-uri publice românești au adrese IPv6 (`mfe.gov.ro`,
+#: `oportunitati-ue.gov.ro`), iar un container fără rută IPv6 primește
+#: `[Errno 101] Network is unreachable` înainte să apuce să încerce IPv4.
+#: Legarea pe o adresă locală IPv4 rezolvă din prima cerere.
+FORTEAZA_IPV4 = os.environ.get("REGISTRU_IPV4", "1") not in {"0", "", "false"}
+
+
+def transport() -> httpx.HTTPTransport:
+    return httpx.HTTPTransport(
+        local_address="0.0.0.0" if FORTEAZA_IPV4 else None,  # noqa: S104 — legare, nu ascultare
+        retries=2,
+    )
+
+
 def http_client() -> httpx.Client:
     return httpx.Client(
         headers={"User-Agent": USER_AGENT},
         timeout=HTTP_TIMEOUT,
         follow_redirects=True,
+        transport=transport(),
     )
 
 

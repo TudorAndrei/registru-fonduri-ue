@@ -38,7 +38,7 @@ services:
       # Domeniul stă aici, nu în interfață, ca fișierul acesta să rămână
       # singurul loc unde se configurează ceva. `REGISTRU_DOMENIU` îl schimbă
       # pentru altă instalare, fără să se atingă nimeni de fișier.
-      - SERVICE_FQDN_DASHBOARD_3000=${REGISTRU_DOMENIU:-registru-ue.tudorandrei.xyz}
+      - SERVICE_FQDN_DASHBOARD_3000=${REGISTRU_DOMENIU:-registru-proiecte.tudorandrei.xyz}
       - SERVICE_URL_DASHBOARD_3000
       - REGISTRU_DATA_DIR=/data
       # Reflex are nevoie de adresa completă, cu schemă, ca interfața să știe

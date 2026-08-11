@@ -39,13 +39,13 @@ services:
       # singurul loc unde se configurează ceva. `REGISTRU_DOMENIU` îl schimbă
       # pentru altă instalare, fără să se atingă nimeni de fișier.
       - SERVICE_FQDN_DASHBOARD_3000=${REGISTRU_DOMENIU:-registru-proiecte.tudorandrei.xyz}
-      - SERVICE_URL_DASHBOARD_3000
       - REGISTRU_DATA_DIR=/data
-      # Reflex are nevoie de adresa completă, cu schemă, ca interfața să știe
-      # unde este partea de server. `SERVICE_URL_` o dă cu tot cu `https://`;
-      # `SERVICE_FQDN_` ar da-o fără. Valoarea de rezervă este pentru
-      # `docker compose up` pe calculatorul propriu, fără Coolify.
-      - API_URL=${SERVICE_URL_DASHBOARD_3000:-http://localhost:3000}
+      # Reflex are nevoie de adresa completă, cu schemă, ca interfața din
+      # browser să știe unde e partea de server. Se construiește din domeniul
+      # de mai sus, nu din `SERVICE_URL_`: acela e generat de Coolify, iar
+      # când FQDN-ul este fixat cu o valoare nu e limpede dacă mai apare.
+      # Un singur lucru de care depinde, și acela e al nostru.
+      - API_URL=${REGISTRU_API_URL:-https://${REGISTRU_DOMENIU:-registru-proiecte.tudorandrei.xyz}}
     # `expose`, nu `ports`: portul nu se publică pe gazdă, doar îl vede
     # proxy-ul Coolify. Pe gazdă ar ocupa un port la întâmplare, degeaba.
     expose:

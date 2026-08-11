@@ -127,7 +127,7 @@ volum       -> /data                  fișiere descărcate, registre, jurnal
 
 **`docker-compose.yaml` este singurul loc de configurare.** Coolify doar citește din el: volumele apar în interfață marcate „read-only”, iar domeniul și portul vin din [variabilele magice](https://coolify.io/docs/knowledge-base/docker/compose) declarate acolo. Nu trebuie completat nimic de mână, iar ce ai schimba în interfață s-ar pierde la următoarea încărcare a fișierului.
 
-Domeniul stă în `SERVICE_FQDN_DASHBOARD_3000`, cu portul din container în chiar numele variabilei. Pentru altă instalare se schimbă cu variabila de mediu `REGISTRU_DOMENIU`, fără să se atingă nimeni de fișier. Acele variabile se **declară fără valoare** — atunci le generează Coolify și, pentru FQDN, configurează și rutarea. `SERVICE_URL_` dă adresa cu tot cu `https://`, de care are nevoie Reflex; `SERVICE_FQDN_` o dă fără.
+Domeniul stă în `SERVICE_FQDN_DASHBOARD_3000`, cu portul din container în chiar numele variabilei. Pentru altă instalare se schimbă cu variabila de mediu `REGISTRU_DOMENIU`, fără să se atingă nimeni de fișier. Acele variabile se **declară fără valoare** — atunci le generează Coolify și, pentru FQDN, configurează și rutarea. `API_URL`, de care are nevoie Reflex ca interfața să știe unde e partea de server, se construiește din același domeniu — nu din `SERVICE_URL_`, care e generat de Coolify și nu e limpede dacă mai apare când FQDN-ul e fixat cu o valoare. Se poate suprascrie direct cu `REGISTRU_API_URL`.
 
 În modul `prod`, Reflex servește interfața și partea de server pe același port, deci este un singur domeniu de configurat.
 

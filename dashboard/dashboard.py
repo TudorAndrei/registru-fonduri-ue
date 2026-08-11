@@ -263,14 +263,12 @@ def table() -> rx.Component:
 def empty_state() -> rx.Component:
     return rx.card(
         rx.vstack(
-            rx.heading("Registrul nu este construit încă", size="5"),
-            rx.text("Rulează, în rădăcina depozitului:", size="2", color_scheme="gray"),
-            rx.code_block(
-                "uv run registru fetch datagovro --limit 6\n"
-                "uv run registru extract\n"
-                "uv run registru build",
-                language="bash",
-                width="100%",
+            rx.heading("Registrul se construiește", size="5"),
+            rx.text(
+                "Prima colectare durează 45-60 de minute. Pagina se umple singură când "
+                "termină. Local, rularea se pornește cu `uv run registru schedule --once`.",
+                size="2",
+                color_scheme="gray",
             ),
             spacing="3",
             align="start",

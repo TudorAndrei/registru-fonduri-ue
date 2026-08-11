@@ -7,13 +7,12 @@ lua: apelurile deschise acum, cu termen și buget.
 from __future__ import annotations
 
 import dataclasses
-import functools
 from datetime import date
 
 import polars as pl
 import reflex as rx
 
-from dashboard.state import ALL, _money, _shorten
+from dashboard.state import ALL, _citeste, _money, _shorten, _stamp
 from registru.config import CALLS_PARQUET
 
 ACCENT = "iris"
@@ -37,11 +36,11 @@ class Call:
     is_software: bool = False
 
 
-@functools.lru_cache(maxsize=1)
 def load_calls() -> pl.DataFrame:
-    if not CALLS_PARQUET.exists():
+    amprenta = _stamp(CALLS_PARQUET)
+    if amprenta is None:
         return pl.DataFrame()
-    return pl.read_parquet(CALLS_PARQUET)
+    return _citeste(str(CALLS_PARQUET), amprenta)
 
 
 class CallsState(rx.State):
@@ -442,13 +441,20 @@ def calls_page() -> rx.Component:
                 ),
                 rx.card(
                     rx.vstack(
-                        rx.heading("Nu sunt apeluri în registru", size="5"),
-                        rx.code_block(
-                            "uv run registru fetch oportunitati\n"
-                            "uv run registru extract oportunitati\n"
-                            "uv run registru build",
-                            language="bash",
-                            width="100%",
+                        rx.heading("Registrul se construiește", size="5"),
+                        rx.text(
+                            "Prima colectare durează 45-60 de minute: peste 5.000 de fișe de "
+                            "apel, arhiva de proiecte și citirea PDF-urilor. Pagina se umple "
+                            "singură când termină — nu trebuie reîncărcat nimic de mână.",
+                            size="2",
+                            color_scheme="gray",
+                        ),
+                        rx.text(
+                            "Dacă a trecut mai mult, jurnalul serviciului `scheduler` spune ce "
+                            "s-a întâmplat; local, `uv run registru schedule --once` face "
+                            "aceeași rulare.",
+                            size="1",
+                            color_scheme="gray",
                         ),
                         spacing="3",
                         align="start",

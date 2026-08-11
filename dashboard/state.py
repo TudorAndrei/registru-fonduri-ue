@@ -72,11 +72,32 @@ class Project:
 Bucket = dict[str, str | float]
 
 
-@functools.lru_cache(maxsize=1)
+def _stamp(path) -> tuple[int, int] | None:
+    """Amprenta fișierului: cât de nou e și cât de mare.
+
+    Schedulerul rescrie registrul o dată pe lună, într-un container diferit de
+    cel care îl citește. Fără amprentă în cheia de cache, interfața ar ține
+    prima citire pentru totdeauna — inclusiv pe cea de la pornire, când
+    schedulerul încă nu apucase să scrie nimic, iar pagina ar rămâne goală
+    până la o repornire manuală.
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (stat.st_mtime_ns, stat.st_size)
+
+
+@functools.lru_cache(maxsize=4)
+def _citeste(cale: str, _amprenta: tuple[int, int]) -> pl.DataFrame:
+    return pl.read_parquet(cale)
+
+
 def load_registry() -> pl.DataFrame:
-    if not REGISTRY_PARQUET.exists():
+    amprenta = _stamp(REGISTRY_PARQUET)
+    if amprenta is None:
         return pl.DataFrame()
-    return pl.read_parquet(REGISTRY_PARQUET)
+    return _citeste(str(REGISTRY_PARQUET), amprenta)
 
 
 def _money(value: object) -> str:

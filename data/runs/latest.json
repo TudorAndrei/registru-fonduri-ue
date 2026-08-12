@@ -1,14 +1,21 @@
 {
-  "started_at": "2026-08-09T17:02:02+00:00",
-  "finished_at": "2026-08-09T17:02:28+00:00",
-  "seconds": 26.067178249999415,
+  "started_at": "2026-08-12T13:18:53+00:00",
+  "finished_at": "2026-08-12T13:25:28+00:00",
+  "seconds": 394.7694277080009,
   "ok": true,
   "sources": [
     {
       "source": "datagovro",
-      "files": 3,
-      "bytes": 1132102,
-      "rows": 18141,
+      "files": 119,
+      "bytes": 128270760,
+      "rows": 152257,
+      "error": null
+    },
+    {
+      "source": "fondurieue",
+      "files": 60,
+      "bytes": 127111931,
+      "rows": 59543,
       "error": null
     },
     {
@@ -20,17 +27,17 @@
     },
     {
       "source": "oportunitati",
-      "files": 46,
-      "bytes": 10793484,
-      "rows": 200,
+      "files": 762,
+      "bytes": 32469243,
+      "rows": 5355,
       "error": null
     }
   ],
-  "projects": 17981,
-  "projects_new": 160,
-  "calls": 200,
-  "calls_new": 0,
-  "calls_active": 5,
-  "software": 422,
+  "projects": 22343,
+  "projects_new": 22160,
+  "calls": 5355,
+  "calls_new": 123,
+  "calls_active": 155,
+  "software": 963,
   "errors": []
 }

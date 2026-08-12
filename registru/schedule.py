@@ -216,6 +216,24 @@ def ragaz_trecut() -> bool:
     return varsta >= COOLDOWN_ORE
 
 
+#: „colectare” aduce datele de la surse; „sync” le ia gata construite din
+#: depozit. A doua variantă e pentru mașinile pe care sursele le resping.
+MOD = os.environ.get("REGISTRU_MOD", "colectare").strip().lower()
+
+
+def _ruleaza(limit: int | None):
+    """O rulare, în modul configurat. Întoarce dacă a mers și ce s-a întâmplat."""
+    if MOD == "sync":
+        from registru.sync import sync
+
+        rezultate = sync()
+        reusit = not any(stare.startswith("eroare") for _, stare in rezultate)
+        rezumat = ", ".join(f"{nume.split('/')[-1]}: {stare}" for nume, stare in rezultate)
+        return reusit, rezumat
+    raport = run_once(limit=limit)
+    return raport.ok, raport.summary()
+
+
 def serve(
     expression: str | None = None,
     run_at_start: bool = True,
@@ -231,6 +249,7 @@ def serve(
     expression = expression or cron_expression()
     print(f"[schedule] program: {expression}", flush=True)
 
+    print(f"[schedule] mod: {MOD}", flush=True)
     lipsa = stare_incompleta()
     # Bucla trebuie să știe de la bun început că registrul este incomplet, chiar
     # dacă răgazul amână rularea. Altfel ar porni cu impresia că totul e bine și
@@ -238,11 +257,10 @@ def serve(
     reusita = lipsa is None
 
     if run_at_start and lipsa:
-        if ragaz_trecut():
+        if ragaz_trecut() or MOD == "sync":
             print(f"[schedule] rulez acum — {lipsa}", flush=True)
-            raport = run_once(limit=limit)
-            reusita = raport.ok
-            print(f"[schedule] {raport.summary()}", flush=True)
+            reusita, rezumat = _ruleaza(limit)
+            print(f"[schedule] {rezumat}", flush=True)
         else:
             print(
                 f"[schedule] {lipsa} — dar ultima rulare e prea recentă, "
@@ -271,9 +289,8 @@ def serve(
         )
         time.sleep(seconds)
         try:
-            raport = run_once(limit=limit)
-            reusita = raport.ok
-            print(f"[schedule] {raport.summary()}", flush=True)
+            reusita, rezumat = _ruleaza(limit)
+            print(f"[schedule] {rezumat}", flush=True)
         except Exception:  # noqa: BLE001 — bucla nu moare din cauza unei rulări
             reusita = False
             traceback.print_exc()

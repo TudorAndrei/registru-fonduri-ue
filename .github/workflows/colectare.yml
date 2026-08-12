@@ -1,122 +1,47 @@
-# Colectarea rulează aici, nu pe server.
+# Verificarea accesului la surse, de pe un agent GitHub.
 #
-# Mai multe surse publice resping adresele de centru de date: `mfe.gov.ro` și
-# `oportunitati-ue.gov.ro` lasă conexiunea să expire, Kohesio răspunde 403.
-# Pe depozite publice, GitHub Actions este gratuit și nelimitat, iar adresele
-# lui sunt altele — de aici și primul pas, care verifică exact asta și scrie
-# rezultatul în rezumatul rulării.
+# Colectarea **nu** poate rula aici, și asta s-a măsurat, nu s-a presupus: pe
+# 12 august 2026 toate cele cinci surse au picat de pe un agent — `data.gov.ro`
+# și `mfe.gov.ro` fără să apuce să răspundă, Kohesio cu 403, arhiva cu 503.
+# Agenții rulează pe Azure, iar site-urile astea filtrează intervalele de nor
+# mai aspru decât pe cele de găzduire obișnuită: de pe serverul propriu,
+# `data.gov.ro` și arhiva mergeau.
 #
-# Ce rămâne pe server: doar servirea interfeței, din cele două fișiere Parquet
-# comise aici. Fișierele brute nu se comit — sunt 350 MB și se refac oricând
-# din adresele și amprentele păstrate în proveniență.
+# Deci colectarea rulează pe o mașină de pe care sursele răspund — practic, un
+# calculator obișnuit — și publică în depozit cele două fișiere Parquet.
+# Serverul le ia de acolo cu `registru sync`.
+#
+# Workflow-ul acesta rămâne ca să poți reverifica oricând: dacă blocajul se
+# ridică, mutarea colectării înapoi aici e o schimbare de câteva linii.
 
-name: Colectare registru
+name: Verifică accesul la surse
 
 on:
-  schedule:
-    # Ziua 1 a lunii, 03:00 UTC. Sursele naționale publică trimestrial.
-    - cron: "0 3 1 * *"
   workflow_dispatch:
-    inputs:
-      doar_verificare:
-        description: "Doar verifică accesul la surse, fără colectare"
-        type: boolean
-        default: false
-
-# O singură colectare odată. Două rulări în paralel s-ar bate pe aceleași
-# fișiere și ar comite una peste alta.
-concurrency:
-  group: colectare
-  cancel-in-progress: false
-
-permissions:
-  contents: write
 
 jobs:
-  colectare:
+  verificare:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Verifică accesul la surse
+      - name: Cere fiecare sursă și notează codul
         run: |
-          esec=0
           verifica() {
             cod=$(curl -sS -o /dev/null -m 30 -w '%{http_code}' \
               -A 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' \
-              "$2" 2>/dev/null || echo "000")
-            if [ "$cod" = "200" ]; then
-              echo "| $1 | \`$cod\` | ✅ |" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "| $1 | \`$cod\` | ❌ |" >> "$GITHUB_STEP_SUMMARY"
-              esec=$((esec + 1))
-            fi
+              "$2" 2>/dev/null) || cod="fără răspuns"
+            [ "$cod" = "200" ] && semn="✅" || semn="❌"
+            # Și în jurnal, și în rezumat: rezumatul e ușor de ratat.
+            echo "$semn $1: $cod"
+            echo "| $1 | \`$cod\` | $semn |" >> "$GITHUB_STEP_SUMMARY"
           }
           echo "## Acces la surse, de pe un agent GitHub" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Sursă | Cod | |" >> "$GITHUB_STEP_SUMMARY"
           echo "| --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
-          verifica "data.gov.ro"           "https://data.gov.ro/api/3/action/package_show?id=proiecte-contractate"
+          verifica "data.gov.ro"            "https://data.gov.ro/api/3/action/package_show?id=proiecte-contractate"
           verifica "oportunitati-ue.gov.ro" "https://oportunitati-ue.gov.ro/wp-json/wp/v2/apel?per_page=1"
-          verifica "kohesio"               "https://kohesio.ec.europa.eu/api/projects?page=0&size=1&countryCode=RO"
-          verifica "mfe.gov.ro"            "https://mfe.gov.ro/"
-          verifica "web.archive.org"       "https://web.archive.org/cdx/search/cdx?url=fonduri-ue.ro&limit=1"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "$esec surse inaccesibile." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Oprește-te dacă s-a cerut doar verificarea
-        if: inputs.doar_verificare
-        run: echo "Doar verificare, gata."
-
-      - uses: astral-sh/setup-uv@v5
-        if: '!inputs.doar_verificare'
-        with:
-          enable-cache: true
-
-      # Parsarea PDF-urilor din arhivă ia zeci de minute și dă mereu același
-      # rezultat, fiindcă fișierele descărcate nu se schimbă. Cheia conține
-      # versiunea parserului, deci o corectură invalidează singură rezultatele.
-      - name: Reia parsările memorate
-        if: '!inputs.doar_verificare'
-        uses: actions/cache@v4
-        with:
-          path: data/interim/cache
-          key: parsari-${{ hashFiles('registru/sources/fondurieue.py') }}
-          restore-keys: parsari-
-
-      - name: Reia modelul de clasificare
-        if: '!inputs.doar_verificare'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/fastembed
-          key: model-fastembed
-
-      - name: Colectează și construiește registrul
-        if: '!inputs.doar_verificare'
-        run: uv run --extra clasificare registru schedule --once
-
-      - name: Scrie sinteza rulării
-        if: always() && !inputs.doar_verificare
-        run: |
-          echo "## Rezultatul colectării" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          cat data/runs/latest.json 2>/dev/null | head -40 >> "$GITHUB_STEP_SUMMARY" || echo "fără jurnal" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-
-      # Se comit doar rezultatele: 6 MB. Fișierele brute rămân pe agent și
-      # dispar cu el — proveniența păstrează adresa și amprenta fiecăruia,
-      # deci oricine le poate reface și verifica.
-      - name: Publică registrele
-        if: '!inputs.doar_verificare'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f data/registry/registru.parquet data/registry/apeluri.parquet data/runs/latest.json
-          if git diff --cached --quiet; then
-            echo "registrele nu s-au schimbat"
-          else
-            git commit -m "registru: colectare $(date -u +%Y-%m-%d)"
-            git push
-          fi
+          verifica "kohesio"                "https://kohesio.ec.europa.eu/api/projects?page=0&size=1&countryCode=RO"
+          verifica "mfe.gov.ro"             "https://mfe.gov.ro/"
+          verifica "web.archive.org"        "https://web.archive.org/cdx/search/cdx?url=fonduri-ue.ro&limit=1"

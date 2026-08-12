@@ -8,7 +8,9 @@
 # interfață: îl declară `SERVICE_FQDN_DASHBOARD_3000` mai jos.
 
 services:
-  # Aduce datele și reconstruiește registrul, o dată pe lună.
+  # Ține registrul la zi în volum. Implicit aduce fișierele gata construite
+  # din depozit, fiindcă sursele resping adresele de centru de date; colectarea
+  # propriu-zisă rulează pe o mașină de pe care ele răspund.
   # Nu are domeniu: nu ascultă pe niciun port, doar scrie în volum.
   scheduler:
     build:
@@ -20,6 +22,11 @@ services:
       # deci mai des nu are ce să aducă.
       - REGISTRU_CRON=${REGISTRU_CRON:-0 3 1 * *}
       - REGISTRU_DATA_DIR=/data
+      # „colectare” aduce datele de la surse; „sync” le ia gata construite din
+      # depozit. A doua e pentru mașinile pe care sursele le resping — iar
+      # serverele de centru de date sunt respinse, verificat.
+      - REGISTRU_MOD=${REGISTRU_MOD:-sync}
+      - REGISTRU_SURSA=${REGISTRU_SURSA:-}
     volumes:
       - registru-data:/data
 

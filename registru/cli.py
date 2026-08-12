@@ -10,6 +10,7 @@ registru export software.csv --software
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -200,6 +201,82 @@ def schedule(
             console.print(f"[red]{error}[/red]")
         raise typer.Exit(0 if report.ok else 1)
     serve(cron, limit=limit)
+
+
+@app.command()
+def publica(
+    colecteaza: Annotated[bool, typer.Option(help="colectează întâi de la surse")] = True,
+) -> None:
+    """Colectează și publică registrele în depozit — rutina lunară.
+
+    Se rulează de pe o mașină de pe care sursele răspund. Serverul nu poate:
+    `oportunitati-ue.gov.ro` și `mfe.gov.ro` lasă conexiunea să expire de pe
+    adrese de centru de date, iar Kohesio răspunde 403. El ia rezultatul cu
+    `registru sync`.
+    """
+    import subprocess  # noqa: S404 — se rulează git, cu argumente fixe
+
+    if colecteaza:
+        from registru.schedule import run_once
+
+        raport = run_once()
+        console.print(raport.summary())
+        for eroare in raport.errors:
+            console.print(f"[red]{eroare}[/red]")
+        if not raport.ok:
+            console.print("[red]colectarea a avut erori; nu public[/red]")
+            raise typer.Exit(1)
+
+    fisiere = [
+        str(REGISTRY_PARQUET),
+        str(CALLS_PARQUET),
+        str(REGISTRY_PARQUET.parent.parent / "runs" / "latest.json"),
+    ]
+    radacina = Path(__file__).resolve().parent.parent
+
+    def git(*argumente: str) -> subprocess.CompletedProcess:
+        return subprocess.run(  # noqa: S603 — argumente fixe, fără shell
+            ["git", *argumente],  # noqa: S607
+            cwd=radacina,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    # `-f` fiindcă `data/` este ignorat: fișierele brute nu au ce căuta în git,
+    # dar registrele construite da.
+    git("add", "-f", *fisiere)
+    if not git("diff", "--cached", "--quiet").returncode:
+        console.print("registrele nu s-au schimbat, nu am ce publica")
+        return
+
+    data = datetime.now(UTC).date().isoformat()
+    commit = git("commit", "-m", f"registru: colectare {data}")
+    if commit.returncode:
+        console.print(f"[red]{commit.stderr.strip()}[/red]")
+        raise typer.Exit(1)
+    push = git("push")
+    if push.returncode:
+        console.print(f"[red]{push.stderr.strip()}[/red]")
+        raise typer.Exit(1)
+    console.print("[green]publicat[/green] — serverul le ia la următoarea sincronizare")
+
+
+@app.command()
+def sync() -> None:
+    """Aduce registrele publicate, în loc să colecteze.
+
+    Pentru mașinile de pe care sursele nu răspund. Colectarea rulează unde
+    merge, iar aici ajunge doar rezultatul.
+    """
+    from registru.sync import SURSA
+    from registru.sync import sync as adu
+
+    console.print(f"sursa: {SURSA}")
+    table = Table("fișier", "stare")
+    for nume, stare in adu():
+        table.add_row(nume, stare)
+    console.print(table)
 
 
 @app.command()

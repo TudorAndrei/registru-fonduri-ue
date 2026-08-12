@@ -163,6 +163,23 @@ Listele naționale de proiecte se publică trimestrial. Apelurile se schimbă ma
 Jurnalul rulărilor stă în `data/runs/`. Fiecare rulare notează ce a adus, cât a durat și ce a eșuat — o rulare care nu aduce nimic nou și una care crapă arată la fel din afară, dacă nimeni nu notează diferența.
 
 
+## Rutina lunară
+
+Colectarea rulează pe o mașină de pe care sursele răspund — practic, un
+calculator obișnuit. Serverul doar servește rezultatul.
+
+```bash
+uv run --extra clasificare registru publica
+```
+
+Colectează de la toate sursele, reconstruiește registrele și le comite în
+depozit. Dacă ceva a căzut, nu publică — mai bine date vechi decât date pe
+jumătate. Cu `--no-colecteaza` publică ce este deja construit.
+
+Pe server, `registru sync` aduce cele două fișiere Parquet și jurnalul ultimei
+rulări. Serviciul `scheduler` face asta singur, fiind pornit cu
+`REGISTRU_MOD=sync`; nu are nevoie să ajungă la nicio sursă.
+
 ## Când sursele resping serverul
 
 Verificat în august 2026, de pe un server Hetzner: `mfe.gov.ro` și
@@ -186,6 +203,12 @@ amprenta SHA-256 pe care o păstrăm ar certifica atunci ce a livrat proxy-ul, n
 ce a publicat autoritatea. Proveniența este singurul lucru care face registrul
 verificabil, și nu merită dat pe comoditate.
 
-Alternativa fără proxy: colectarea rulează unde nu este blocată — pe calculatorul
-tău, sau într-un job de GitHub Actions — iar pe server ajung doar cele două
-fișiere Parquet.
+**GitHub Actions nu este o alternativă**, măsurat pe 12 august 2026: de pe un
+agent au picat toate cinci sursele, inclusiv `data.gov.ro` și arhiva, care merg
+de pe server. Agenții rulează pe Azure, iar site-urile filtrează intervalele de
+nor mai aspru decât pe cele de găzduire obișnuită. Workflow-ul
+`.github/workflows/colectare.yml` a rămas ca verificare, ca să poți reîncerca
+dacă blocajul se ridică.
+
+Ce funcționează este rutina de mai sus: colectare pe o mașină obișnuită,
+publicare în depozit, `registru sync` pe server.

@@ -45,13 +45,17 @@ CMD ["registru", "schedule"]
 FROM base AS dashboard
 ENV REFLEX_ENV_MODE=prod
 EXPOSE 3000
-# Marjă largă dinadins. Schedulerul rulează pe aceeași mașină și îi ia
-# procesorul cu citit PDF-uri și cu modelul de clasificare, iar un răspuns
-# lent nu înseamnă aplicație moartă — înseamnă mașină ocupată. Cu cinci
-# secunde, containerul era declarat bolnav degeaba, iar proxy-ul nu mai
-# ruta spre el: de acolo veneau 503-urile.
-HEALTHCHECK --interval=30s --timeout=20s --start-period=300s --retries=10 \
-    CMD curl -fsS -o /dev/null --max-time 18 http://127.0.0.1:3000/ || exit 1
+# Fără HEALTHCHECK, dinadins.
+#
+# Schedulerul rulează pe aceeași mașină și îi ia procesorul cu citit PDF-uri
+# și cu modelul de clasificare. O verificare care cere răspuns în câteva
+# secunde declară aplicația moartă când e doar ocupată, iar proxy-ul nu mai
+# rutează spre un container bolnav: „no available server", deși aplicația
+# răspunde. S-a văzut limpede — cât timp Coolify raporta „no health check
+# configured, traffic can still be routed", domeniul întorcea 200.
+#
+# Fără verificare, Coolify rutează după starea containerului. Se pierde
+# semnalul „aplicația e gata", dar se câștigă faptul că răspunde.
 # În modul `prod`, Reflex servește interfața și partea de server pe același
 # port — altfel refuză să pornească. Un singur port simplifică și Coolify.
 # Interfața se compilează la prima pornire; de aceea `start-period` este lung.

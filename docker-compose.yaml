@@ -30,22 +30,25 @@ services:
       target: dashboard
     restart: unless-stopped
     environment:
-      # Variabilele „magice” ale Coolify. Declarate fără valoare, le generează
-      # el; declarate cu valoare, o folosește pe a noastră. Numele se formează
-      # din numele serviciului și portul din container.
+      # Variabilă „magică” a Coolify: numele se formează din numele serviciului
+      # și portul din container.
       # https://coolify.io/docs/knowledge-base/docker/compose
       #
-      # Domeniul stă aici, nu în interfață, ca fișierul acesta să rămână
-      # singurul loc unde se configurează ceva. `REGISTRU_DOMENIU` îl schimbă
-      # pentru altă instalare, fără să se atingă nimeni de fișier.
-      - SERVICE_FQDN_DASHBOARD_3000=${REGISTRU_DOMENIU:-registru-proiecte.tudorandrei.xyz}
+      # Declarată fără valoare, dinadins. Un FQDN fixat aici nu este acceptat:
+      # Coolify reconciliază domeniul spre gol la următoarea desfășurare, adică
+      # ar șterge exact domeniul pe care voiam să-l fixăm. Declarația goală îi
+      # spune doar ce port să lege, iar domeniul rămâne al lui — este singurul
+      # lucru pe care interfața insistă să-l dețină.
+      #
+      # Prima instalare primește un domeniu generat; cel dorit se pune o dată,
+      # din interfață, și de atunci se păstrează.
+      - SERVICE_FQDN_DASHBOARD_3000
       - REGISTRU_DATA_DIR=/data
       # Reflex are nevoie de adresa completă, cu schemă, ca interfața din
-      # browser să știe unde e partea de server. Se construiește din domeniul
-      # de mai sus, nu din `SERVICE_URL_`: acela e generat de Coolify, iar
-      # când FQDN-ul este fixat cu o valoare nu e limpede dacă mai apare.
-      # Un singur lucru de care depinde, și acela e al nostru.
-      - API_URL=${REGISTRU_API_URL:-https://${REGISTRU_DOMENIU:-registru-proiecte.tudorandrei.xyz}}
+      # browser să știe unde e partea de server. Se pune direct, fiindcă acum
+      # domeniul îl stabilește interfața: `REGISTRU_API_URL` se completează
+      # acolo, la variabile de mediu, cu adresa publică.
+      - API_URL=${REGISTRU_API_URL:-http://localhost:3000}
     # `expose`, nu `ports`: portul nu se publică pe gazdă, doar îl vede
     # proxy-ul Coolify. Pe gazdă ar ocupa un port la întâmplare, degeaba.
     expose:

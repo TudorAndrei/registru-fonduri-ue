@@ -125,7 +125,11 @@ volum       -> /data                  fișiere descărcate, registre, jurnal
 
 În Coolify: **New Resource → Public Repository**, apoi la **Build Pack** alege **Docker Compose**. Implicit este Nixpacks, care ar ghici o singură aplicație Python și ar porni-o pe ea — aici sunt două servicii care împart un volum. Restul câmpurilor rămân cum sunt: ramura `main`, „Base Directory” `/`, „Docker Compose Location” `/docker-compose.yaml` — fișierul poartă extensia `.yaml` tocmai ca să se potrivească cu ce completează Coolify singur. Câmpul de port dispare odată cu schimbarea: porturile vin din fișier.
 
-**`docker-compose.yaml` este singurul loc de configurare.** Coolify doar citește din el: volumele apar în interfață marcate „read-only”, iar domeniul și portul vin din [variabilele magice](https://coolify.io/docs/knowledge-base/docker/compose) declarate acolo. Nu trebuie completat nimic de mână, iar ce ai schimba în interfață s-ar pierde la următoarea încărcare a fișierului.
+**`docker-compose.yaml` ține aproape toată configurația** — serviciile, volumul, portul, variabilele de mediu. Coolify le citește din el; volumele apar în interfață marcate „read-only”.
+
+**Domeniul este singura excepție, și îl deține interfața.** Un FQDN fixat cu valoare în compose nu ține: Coolify îl reconciliază spre gol la următoarea desfășurare, adică șterge exact domeniul pe care voiai să-l fixezi. `SERVICE_FQDN_DASHBOARD_3000` se declară deci fără valoare — îi spune doar ce port să lege — iar domeniul dorit se pune o dată, din interfață.
+
+Tot acolo se pune și `REGISTRU_API_URL`, cu aceeași adresă publică și fără port: Reflex are nevoie de ea ca interfața din browser să știe unde e partea de server.
 
 Domeniul stă în `SERVICE_FQDN_DASHBOARD_3000`, cu portul din container în chiar numele variabilei. Pentru altă instalare se schimbă cu variabila de mediu `REGISTRU_DOMENIU`, fără să se atingă nimeni de fișier. Acele variabile se **declară fără valoare** — atunci le generează Coolify și, pentru FQDN, configurează și rutarea. `API_URL`, de care are nevoie Reflex ca interfața să știe unde e partea de server, se construiește din același domeniu — nu din `SERVICE_URL_`, care e generat de Coolify și nu e limpede dacă mai apare când FQDN-ul e fixat cu o valoare. Se poate suprascrie direct cu `REGISTRU_API_URL`.
 

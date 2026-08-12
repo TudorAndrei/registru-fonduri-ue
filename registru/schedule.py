@@ -174,14 +174,15 @@ def next_run(expression: str | None = None, now: datetime | None = None) -> date
     return croniter(expression, now or datetime.now(UTC)).get_next(datetime)
 
 
-def de_ce_sa_ruleze_acum() -> str | None:
-    """Motivul pentru care merită o rulare la pornire, sau None dacă nu merită.
+def stare_incompleta() -> str | None:
+    """Ce lipsește din registru, sau None dacă totul este la locul lui.
 
-    Nu este de ajuns să existe registrul. O rulare poate să reușească pentru o
+    Nu este de ajuns să existe fișierele. O rulare poate să reușească pentru o
     sursă și să cadă pentru alta — s-a întâmplat: proiectele s-au construit,
-    apelurile au rămas zero pentru că sursa lor nu era accesibilă. Registrul
-    exista, deci o repornire nu ar fi reîncercat nimic, iar golul ar fi rămas
-    până la următoarea rulare programată, adică o lună.
+    apelurile au rămas zero pentru că sursa lor nu era accesibilă.
+
+    Răspunsul acesta nu ține cont de răgaz: spune doar dacă mai e ceva de
+    făcut. Când anume se face, decide `serve`.
     """
     if not REGISTRY_PARQUET.exists():
         return "registrul lipsește"
@@ -190,21 +191,29 @@ def de_ce_sa_ruleze_acum() -> str | None:
     ultima = read_latest()
     if ultima is None:
         return "nu există jurnal de rulare"
-
-    inceput = ultima.get("started_at")
-    if inceput:
-        try:
-            varsta = (datetime.now(UTC) - datetime.fromisoformat(inceput)).total_seconds() / 3600
-        except ValueError:
-            varsta = COOLDOWN_ORE + 1
-        if varsta < COOLDOWN_ORE:
-            return None
-
     if not ultima.get("ok"):
         return f"ultima rulare a avut erori: {'; '.join(ultima.get('errors') or [])[:200]}"
     if not ultima.get("calls"):
         return "ultima rulare nu a adus niciun apel"
     return None
+
+
+def ragaz_trecut() -> bool:
+    """A trecut destul de la ultima rulare cât să merite o alta?
+
+    Răgazul apără de reporniri repetate de container, nu de reîncercări. De
+    aceea nu are voie să spună „nu mai e nimic de făcut”: dacă ar face-o,
+    bucla ar porni cu impresia că totul e bine și ar dormi până luna viitoare.
+    """
+    ultima = read_latest()
+    inceput = (ultima or {}).get("started_at")
+    if not inceput:
+        return True
+    try:
+        varsta = (datetime.now(UTC) - datetime.fromisoformat(inceput)).total_seconds() / 3600
+    except ValueError:
+        return True
+    return varsta >= COOLDOWN_ORE
 
 
 def serve(
@@ -222,13 +231,24 @@ def serve(
     expression = expression or cron_expression()
     print(f"[schedule] program: {expression}", flush=True)
 
-    motiv = de_ce_sa_ruleze_acum() if run_at_start else None
-    reusita = True
-    if motiv:
-        print(f"[schedule] rulez acum — {motiv}", flush=True)
-        raport = run_once(limit=limit)
-        reusita = raport.ok
-        print(f"[schedule] {raport.summary()}", flush=True)
+    lipsa = stare_incompleta()
+    # Bucla trebuie să știe de la bun început că registrul este incomplet, chiar
+    # dacă răgazul amână rularea. Altfel ar porni cu impresia că totul e bine și
+    # ar dormi până la termenul din program — o lună, pentru un gol de o oră.
+    reusita = lipsa is None
+
+    if run_at_start and lipsa:
+        if ragaz_trecut():
+            print(f"[schedule] rulez acum — {lipsa}", flush=True)
+            raport = run_once(limit=limit)
+            reusita = raport.ok
+            print(f"[schedule] {raport.summary()}", flush=True)
+        else:
+            print(
+                f"[schedule] {lipsa} — dar ultima rulare e prea recentă, "
+                f"aștept răgazul de {COOLDOWN_ORE:.0f}h",
+                flush=True,
+            )
 
     while True:
         urmatoarea = next_run(expression)

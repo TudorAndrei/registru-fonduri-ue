@@ -101,6 +101,26 @@ def forteaza_ipv4() -> None:
 forteaza_ipv4()
 
 
+def proxy() -> dict[str, str]:
+    """Ieșirea prin care se fac cererile, dacă este configurată una.
+
+    Mai multe site-uri publice ale administrației resping adresele de centru de
+    date: `mfe.gov.ro` și `oportunitati-ue.gov.ro` lasă conexiunea să expire,
+    Kohesio răspunde 403. De pe o rețea obișnuită, toate răspund în jumătate de
+    secundă. Nu este ceva ce se poate repara din cod.
+
+    `REGISTRU_PROXY` spune pe unde să iasă cererile. Alege o ieșire pe care o
+    controlezi — un tunel către rețeaua ta, sau o mașină a ta. Un proxy public
+    anonim poate rescrie răspunsul, iar atunci amprenta SHA-256 pe care o
+    păstrăm ar certifica ce a livrat proxy-ul, nu ce a publicat autoritatea.
+    Proveniența este singurul lucru care face registrul verificabil.
+    """
+    adresa = os.environ.get("REGISTRU_PROXY", "").strip()
+    if not adresa:
+        return {}
+    return {"http": adresa, "https": adresa}
+
+
 #: Cum se prezintă clientul. `curl_cffi` reproduce amprenta TLS a unui Chrome
 #: real, nu doar antetele lui. Fără ea, mai multe surse răspund 403 cererilor
 #: venite dintr-un centru de date, deși datele sunt publice și reutilizabile.
@@ -156,6 +176,7 @@ class Client:
             headers={**BROWSER_HEADERS, **(headers or {})},
             timeout=HTTP_TIMEOUT,
             curl_options=optiuni,
+            proxies=proxy() or None,  # ty: ignore[invalid-argument-type]
         )
 
     def get(self, url: str, **kwargs):

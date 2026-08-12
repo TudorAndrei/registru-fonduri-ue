@@ -143,6 +143,7 @@ Variabile de mediu:
 | `REGISTRU_DATA_DIR` | `/data` | Unde stau datele. Trebuie să fie volum persistent. |
 | `REGISTRU_DETALII_APEL` | `6000` | Câte fișe de apel se descarcă la o rulare. |
 | `REGISTRU_FIRE` | `6` | Câte descărcări în paralel. Mic dinadins. |
+| `REGISTRU_PROXY` | — | Pe unde ies cererile. Vezi mai jos. |
 
 Prima pornire, ca să nu pară blocată: containerul `scheduler` vede volumul gol și rulează imediat, în loc să aștepte până la 1 ale lunii ca să afli dacă merge. Durează 45-60 de minute — descărcarea celor 5.233 de fișe de apel, arhiva, și parsarea PDF-urilor. Rulările următoare iau doar ce s-a schimbat, fiindcă parsarea se memorează pe amprenta fișierului. În paralel, `dashboard` își compilează interfața la prima pornire, de unde `start_period` de 300 de secunde în healthcheck; până termină schedulerul, va arăta gol.
 
@@ -160,3 +161,31 @@ docker compose exec scheduler registru runs
 Listele naționale de proiecte se publică trimestrial. Apelurile se schimbă mai des, dar un termen de depunere se anunță cu săptămâni înainte, deci o rulare pe lună nu ratează nimic. Dacă vrei mai des, `REGISTRU_CRON="0 3 * * 1"` face o rulare în fiecare luni.
 
 Jurnalul rulărilor stă în `data/runs/`. Fiecare rulare notează ce a adus, cât a durat și ce a eșuat — o rulare care nu aduce nimic nou și una care crapă arată la fel din afară, dacă nimeni nu notează diferența.
+
+
+## Când sursele resping serverul
+
+Verificat în august 2026, de pe un server Hetzner: `mfe.gov.ro` și
+`oportunitati-ue.gov.ro` lasă conexiunea să expire după 120 de secunde, iar
+Kohesio răspunde 403. De pe o rețea obișnuită, toate trei răspund 200 în
+jumătate de secundă. `data.gov.ro` și arhiva Wayback merg de oriunde.
+
+Un timp de așteptare depășit înseamnă că pachetele sunt aruncate înainte de
+orice dialog, deci nu are ce repara clientul: nici antetele, nici amprenta TLS
+nu apucă să conteze. Este filtrare după adresă.
+
+`REGISTRU_PROXY` spune pe unde să iasă cererile:
+
+```bash
+REGISTRU_PROXY=http://ieșirea-mea:3128
+```
+
+**Alege o ieșire pe care o controlezi** — un tunel către rețeaua ta, sau o
+mașină a ta. Nu un proxy public: acela vede și poate rescrie răspunsul, iar
+amprenta SHA-256 pe care o păstrăm ar certifica atunci ce a livrat proxy-ul, nu
+ce a publicat autoritatea. Proveniența este singurul lucru care face registrul
+verificabil, și nu merită dat pe comoditate.
+
+Alternativa fără proxy: colectarea rulează unde nu este blocată — pe calculatorul
+tău, sau într-un job de GitHub Actions — iar pe server ajung doar cele două
+fișiere Parquet.

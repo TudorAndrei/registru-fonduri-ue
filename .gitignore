@@ -1,7 +1,19 @@
-# Datele descărcate și cele derivate nu intră în git.
-# `data/raw/` este dovada: se reconstruiește cu `registru fetch`, nu se versionează.
-data/
-!data/.gitkeep
+# Fișierele descărcate nu intră în git: sunt 350 MB, iar proveniența păstrează
+# adresa și amprenta fiecăruia, deci se pot reface și verifica oricând.
+#
+# Git nu coboară într-un director ignorat, deci negațiile nu funcționează pe
+# `data/` întreg — se ignoră conținutul, nu directoarele.
+data/*
+data/registry/*
+data/runs/*
+
+# Registrele construite intră, însă: 6 MB, și sunt singurul lucru de care are
+# nevoie interfața. Colectarea rulează în GitHub Actions, care le comite aici.
+!data/registry/
+!data/registry/registru.parquet
+!data/registry/apeluri.parquet
+!data/runs/
+!data/runs/latest.json
 
 # Reflex — `reflex.lock/` se versionează, restul se generează
 .web

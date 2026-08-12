@@ -1,0 +1,36 @@
+{
+  "started_at": "2026-08-09T17:02:02+00:00",
+  "finished_at": "2026-08-09T17:02:28+00:00",
+  "seconds": 26.067178249999415,
+  "ok": true,
+  "sources": [
+    {
+      "source": "datagovro",
+      "files": 3,
+      "bytes": 1132102,
+      "rows": 18141,
+      "error": null
+    },
+    {
+      "source": "kohesio",
+      "files": 1,
+      "bytes": 53345,
+      "rows": 15,
+      "error": null
+    },
+    {
+      "source": "oportunitati",
+      "files": 46,
+      "bytes": 10793484,
+      "rows": 200,
+      "error": null
+    }
+  ],
+  "projects": 17981,
+  "projects_new": 160,
+  "calls": 200,
+  "calls_new": 0,
+  "calls_active": 5,
+  "software": 422,
+  "errors": []
+}

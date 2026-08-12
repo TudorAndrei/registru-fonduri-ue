@@ -165,6 +165,29 @@ def next_run(expression: str | None = None, now: datetime | None = None) -> date
     return croniter(expression, now or datetime.now(UTC)).get_next(datetime)
 
 
+def de_ce_sa_ruleze_acum() -> str | None:
+    """Motivul pentru care merită o rulare la pornire, sau None dacă nu merită.
+
+    Nu este de ajuns să existe registrul. O rulare poate să reușească pentru o
+    sursă și să cadă pentru alta — s-a întâmplat: proiectele s-au construit,
+    apelurile au rămas zero pentru că sursa lor nu era accesibilă. Registrul
+    exista, deci o repornire nu ar fi reîncercat nimic, iar golul ar fi rămas
+    până la următoarea rulare programată, adică o lună.
+    """
+    if not REGISTRY_PARQUET.exists():
+        return "registrul lipsește"
+    if not CALLS_PARQUET.exists():
+        return "lipsesc apelurile"
+    ultima = read_latest()
+    if ultima is None:
+        return "nu există jurnal de rulare"
+    if not ultima.get("ok"):
+        return f"ultima rulare a avut erori: {'; '.join(ultima.get('errors') or [])[:200]}"
+    if not ultima.get("calls"):
+        return "ultima rulare nu a adus niciun apel"
+    return None
+
+
 def serve(
     expression: str | None = None,
     run_at_start: bool = True,
@@ -172,15 +195,17 @@ def serve(
 ) -> None:
     """Bucla de programare. Rulează până este oprită.
 
-    `run_at_start` există pentru prima pornire pe server: un container proaspăt
-    nu are registru, iar a aștepta până la 1 ale lunii ca să afli dacă merge nu
-    este o strategie de desfășurare.
+    Rularea la pornire există pentru server: un container proaspăt nu are
+    registru, iar a aștepta până la 1 ale lunii ca să afli dacă merge nu este o
+    strategie de desfășurare. Se reia și după o rulare cu erori, altfel o
+    corectură desfășurată azi nu s-ar vedea decât luna viitoare.
     """
     expression = expression or cron_expression()
     print(f"[schedule] program: {expression}", flush=True)
 
-    if run_at_start and not REGISTRY_PARQUET.exists():
-        print("[schedule] registrul lipsește, rulez acum", flush=True)
+    motiv = de_ce_sa_ruleze_acum() if run_at_start else None
+    if motiv:
+        print(f"[schedule] rulez acum — {motiv}", flush=True)
         print(f"[schedule] {run_once(limit=limit).summary()}", flush=True)
 
     while True:

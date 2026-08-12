@@ -33,6 +33,11 @@ LATEST = RUNS_DIR / "latest.json"
 #: trimestrial, deci mai des nu are ce să aducă.
 DEFAULT_CRON = "0 3 1 * *"
 
+#: Cât se așteaptă înainte de a relua o rulare incompletă. Fără răgazul acesta,
+#: o sursă indisponibilă ar face ca fiecare repornire de container să reia toată
+#: colectarea — zeci de minute, de fiecare dată, pentru același eșec.
+COOLDOWN_ORE = float(os.environ.get("REGISTRU_RAGAZ_ORE", "6"))
+
 
 @dataclass
 class SourceResult:
@@ -102,8 +107,12 @@ def run_once(limit: int | None = None, only: list[str] | None = None) -> RunRepo
         except Exception as error:  # noqa: BLE001 — se notează și se merge mai departe
             result.error = f"{type(error).__name__}: {error}"
             report.errors.append(f"{source_id}: {result.error}")
-            report.ok = False
-            traceback.print_exc()
+            # O sursă marcată opțională nu strică rularea. Kohesio răspunde 403
+            # cererilor dintr-un centru de date; sunt 15 rânduri, iar a declara
+            # rularea eșuată pentru ele ar însemna reluare la fiecare pornire.
+            if not getattr(get_source(source_id), "optional", False):
+                report.ok = False
+            print(f"[schedule] {source_id}: {result.error.splitlines()[0]}", flush=True)
         report.sources.append(result)
 
     try:
@@ -181,6 +190,16 @@ def de_ce_sa_ruleze_acum() -> str | None:
     ultima = read_latest()
     if ultima is None:
         return "nu există jurnal de rulare"
+
+    inceput = ultima.get("started_at")
+    if inceput:
+        try:
+            varsta = (datetime.now(UTC) - datetime.fromisoformat(inceput)).total_seconds() / 3600
+        except ValueError:
+            varsta = COOLDOWN_ORE + 1
+        if varsta < COOLDOWN_ORE:
+            return None
+
     if not ultima.get("ok"):
         return f"ultima rulare a avut erori: {'; '.join(ultima.get('errors') or [])[:200]}"
     if not ultima.get("calls"):

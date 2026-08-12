@@ -38,6 +38,10 @@ _TAGS = re.compile(r"<[^>]+>")
 class Kohesio:
     id = "kohesio"
     kind = "project"
+    #: Aduce 15 rânduri și niciun câmp pe care să nu-l dea altcineva. Când
+    #: răspunde 403 pentru că cererea vine dintr-un centru de date, rularea nu
+    #: are motiv să fie marcată drept eșuată.
+    optional = True
     name = "Kohesio (Comisia Europeană)"
 
     def __init__(self, country: str = "RO") -> None:

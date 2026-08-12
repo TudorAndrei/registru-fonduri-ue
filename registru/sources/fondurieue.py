@@ -24,19 +24,18 @@ import re
 import urllib.parse
 from pathlib import Path
 
-import httpx
 import polars as pl
 import wayback
 
-from registru.config import HTTP_TIMEOUT, INTERIM_DIR, RAW_DIR, USER_AGENT
+from registru.config import HTTP_TIMEOUT, INTERIM_DIR, RAW_DIR
 from registru.headers import map_columns
 from registru.schema import conform, empty_frame
 from registru.sources.base import (
     FetchedFile,
+    http_client,
     now_iso,
     read_manifest,
     sha256_file,
-    transport,
     write_manifest,
 )
 from registru.tabular import (
@@ -164,8 +163,7 @@ class FonduriUe:
         de instantanee, ceea ce ia zece minute. Biblioteca rămâne pentru
         descărcarea propriu-zisă, unde se ocupă de redirectări și de reîncercări.
         """
-        client = httpx.Client(transport=transport(), follow_redirects=True)
-        response = client.get(
+        response = http_client().get(
             CDX_API,
             params={
                 "url": f"{DOMAIN}/*",
@@ -176,7 +174,6 @@ class FonduriUe:
                 "limit": "60000",
             },
             timeout=HTTP_TIMEOUT * 3,
-            headers={"User-Agent": USER_AGENT},
         )
         response.raise_for_status()
         rows = response.json()[1:]

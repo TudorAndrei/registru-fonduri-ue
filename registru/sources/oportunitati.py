@@ -25,17 +25,17 @@ from datetime import date, datetime
 from html import unescape
 from pathlib import Path
 
-import httpx
 import polars as pl
 
-from registru.config import HTTP_TIMEOUT, RAW_DIR, USER_AGENT
+from registru.config import RAW_DIR
 from registru.schema import conform_calls, empty_calls
 from registru.sources.base import (
+    Client,
     FetchedFile,
+    http_client,
     now_iso,
     read_manifest,
     sha256_file,
-    transport,
     write_manifest,
 )
 
@@ -67,22 +67,9 @@ MONTHS = {
 }
 
 
-def browser_client() -> httpx.Client:
+def browser_client() -> Client:
     """WAF-ul respinge cererile fără antete de navigator, inclusiv pe robots.txt."""
-    return httpx.Client(
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-                f"(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 {USER_AGENT}"
-            ),
-            "Accept": "application/json, text/html;q=0.9,*/*;q=0.8",
-            "Accept-Language": "ro-RO,ro;q=0.9,en;q=0.8",
-            "Referer": f"{BASE}/apeluri/",
-        },
-        timeout=HTTP_TIMEOUT,
-        follow_redirects=True,
-        transport=transport(),
-    )
+    return http_client({"Referer": f"{BASE}/apeluri/"})
 
 
 class Oportunitati:
@@ -112,7 +99,7 @@ class Oportunitati:
         write_manifest(self.id, fetched)
         return fetched
 
-    def _fetch_terms(self, client: httpx.Client) -> list[FetchedFile]:
+    def _fetch_terms(self, client: Client) -> list[FetchedFile]:
         """Taxonomiile vin ca liste de identificatori; aici se aduc numele."""
         out: list[FetchedFile] = []
         for taxonomy in TAXONOMIES:
@@ -130,7 +117,7 @@ class Oportunitati:
             out.append(self._save(f"terms/{taxonomy}.json", terms, str(response.url)))
         return out
 
-    def _fetch_calls(self, client: httpx.Client, limit: int | None) -> list[FetchedFile]:
+    def _fetch_calls(self, client: Client, limit: int | None) -> list[FetchedFile]:
         out: list[FetchedFile] = []
         max_pages = limit if limit is not None else 100
         for page in range(1, max_pages + 1):
@@ -155,7 +142,7 @@ class Oportunitati:
         return out
 
     def _fetch_details(
-        self, client: httpx.Client, calls: list[FetchedFile], limit: int | None
+        self, client: Client, calls: list[FetchedFile], limit: int | None
     ) -> list[FetchedFile]:
         """Pagina fiecărui apel, pentru buget și calendar.
 
@@ -197,11 +184,11 @@ class Oportunitati:
                     print(f"  {done}/{len(wanted)}", flush=True)
         return out
 
-    def _fetch_one(self, client: httpx.Client, slug: str) -> FetchedFile | None:
+    def _fetch_one(self, client: Client, slug: str) -> FetchedFile | None:
         url = f"{BASE}/apel/{slug}/"
         try:
             response = client.get(url)
-        except httpx.HTTPError:
+        except Exception:  # noqa: BLE001 — o fișă lipsă nu oprește descărcarea
             return None
         if response.status_code != 200:
             return None

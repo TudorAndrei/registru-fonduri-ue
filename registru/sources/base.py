@@ -15,12 +15,12 @@ import hashlib
 import json
 import os
 import socket
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
-import httpx
 import polars as pl
 
 from registru.config import HTTP_TIMEOUT, RAW_DIR, USER_AGENT
@@ -101,13 +101,13 @@ def forteaza_ipv4() -> None:
 forteaza_ipv4()
 
 
-def transport() -> httpx.HTTPTransport:
-    return httpx.HTTPTransport(retries=2)
+#: Cum se prezintă clientul. `curl_cffi` reproduce amprenta TLS a unui Chrome
+#: real, nu doar antetele lui. Fără ea, mai multe surse răspund 403 cererilor
+#: venite dintr-un centru de date, deși datele sunt publice și reutilizabile.
+IMPERSONARE = os.environ.get("REGISTRU_IMPERSONARE", "chrome")
 
-
-#: Antete de navigator, plus cine suntem. Kohesio întoarce 403 fără ele când
-#: cererea vine dintr-un centru de date, iar `oportunitati-ue.gov.ro` la fel.
-#: Nu ascundem nimic: `User-Agent` spune și numele proiectului, și adresa lui.
+#: Antete de navigator, plus cine suntem. `User-Agent` spune și numele
+#: proiectului, și adresa lui: nu ascundem cine face cererea.
 BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -118,16 +118,71 @@ BROWSER_HEADERS = {
 }
 
 
-def http_client(headers: dict[str, str] | None = None) -> httpx.Client:
-    return httpx.Client(
-        headers={**BROWSER_HEADERS, **(headers or {})},
-        timeout=HTTP_TIMEOUT,
-        follow_redirects=True,
-        transport=transport(),
-    )
+class _StreamResponse:
+    """Răspuns în flux, cu numele de metode pe care le folosește restul codului."""
+
+    def __init__(self, response) -> None:
+        self._response = response
+
+    def raise_for_status(self):
+        return self._response.raise_for_status()
+
+    def iter_bytes(self, chunk_size: int = 1 << 16):
+        return self._response.iter_content(chunk_size)
+
+    def __getattr__(self, name):
+        return getattr(self._response, name)
 
 
-def download(client: httpx.Client, url: str, target: Path) -> bool:
+class Client:
+    """Clientul HTTP al proiectului: `curl_cffi` pe dinăuntru, `httpx` pe dinafară.
+
+    `curl_cffi` merge pe libcurl și reproduce amprenta TLS a unui browser, nu
+    doar antetele. Interfața rămâne cea a lui `httpx` — `get` și `stream` — ca
+    adaptoarele să nu știe pe ce merg.
+
+    IPv4 se cere prin libcurl (`IPRESOLVE`), nu prin `socket`: libcurl are
+    propria rezolvare, deci petecul pe `getaddrinfo` nu îl atinge. Petecul
+    rămâne totuși pentru `wayback`, care merge pe `requests`.
+    """
+
+    def __init__(self, headers: dict[str, str] | None = None) -> None:
+        from curl_cffi import CurlOpt
+        from curl_cffi import requests as curl_requests
+
+        optiuni = {CurlOpt.IPRESOLVE: 1} if FORTEAZA_IPV4 else {}
+        self._session = curl_requests.Session(
+            impersonate=IMPERSONARE,
+            headers={**BROWSER_HEADERS, **(headers or {})},
+            timeout=HTTP_TIMEOUT,
+            curl_options=optiuni,
+        )
+
+    def get(self, url: str, **kwargs):
+        return self._session.get(url, **kwargs)
+
+    @contextmanager
+    def stream(self, method: str, url: str, **kwargs):
+        # `curl_cffi` tipează metoda ca literal; noi o primim ca text de la
+        # apelanți, iar singura folosită este "GET".
+        with self._session.stream(method, url, **kwargs) as response:  # ty: ignore[invalid-argument-type]
+            yield _StreamResponse(response)
+
+    def close(self) -> None:
+        self._session.close()
+
+    def __enter__(self) -> Client:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+
+def http_client(headers: dict[str, str] | None = None) -> Client:
+    return Client(headers)
+
+
+def download(client: Client, url: str, target: Path) -> bool:
     """Descarcă în `target`. Întoarce False dacă fișierul era deja acolo.
 
     Nu se rescrie nimic: un fișier descărcat este dovadă, nu cache.

@@ -10,6 +10,7 @@ keywords = ["fonduri-europene", "open-data", "romania", "esif", "cohesion-policy
 
 dependencies = [
     "croniter>=3.0",
+    "curl-cffi>=0.16",
     "duckdb>=1.1",
     "fastexcel>=0.12",
     "firecrawl-anydoc==0.1.2",

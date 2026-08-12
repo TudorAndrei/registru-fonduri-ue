@@ -16,7 +16,7 @@ import os
 import time
 import traceback
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -223,19 +223,37 @@ def serve(
     print(f"[schedule] program: {expression}", flush=True)
 
     motiv = de_ce_sa_ruleze_acum() if run_at_start else None
+    reusita = True
     if motiv:
         print(f"[schedule] rulez acum — {motiv}", flush=True)
-        print(f"[schedule] {run_once(limit=limit).summary()}", flush=True)
+        raport = run_once(limit=limit)
+        reusita = raport.ok
+        print(f"[schedule] {raport.summary()}", flush=True)
 
     while True:
-        upcoming = next_run(expression)
-        seconds = max(1.0, (upcoming - datetime.now(UTC)).total_seconds())
+        urmatoarea = next_run(expression)
+        # După o rulare căzută nu se așteaptă până la următorul termen din
+        # program: sursa poate fi indisponibilă o oră, iar programul e lunar.
+        # Se reîncearcă după răgaz, dacă acesta cade mai devreme.
+        if not reusita:
+            reluare = datetime.now(UTC) + timedelta(hours=COOLDOWN_ORE)
+            if reluare < urmatoarea:
+                urmatoarea = reluare
+                print(
+                    f"[schedule] ultima rulare a avut erori, reîncerc peste {COOLDOWN_ORE:.0f}h",
+                    flush=True,
+                )
+
+        seconds = max(1.0, (urmatoarea - datetime.now(UTC)).total_seconds())
         print(
-            f"[schedule] următoarea rulare: {upcoming.isoformat()} (peste {seconds / 3600:.1f}h)",
+            f"[schedule] următoarea rulare: {urmatoarea.isoformat()} (peste {seconds / 3600:.1f}h)",
             flush=True,
         )
         time.sleep(seconds)
         try:
-            print(f"[schedule] {run_once(limit=limit).summary()}", flush=True)
+            raport = run_once(limit=limit)
+            reusita = raport.ok
+            print(f"[schedule] {raport.summary()}", flush=True)
         except Exception:  # noqa: BLE001 — bucla nu moare din cauza unei rulări
+            reusita = False
             traceback.print_exc()

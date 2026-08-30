@@ -1,7 +1,7 @@
 {
-  "started_at": "2026-08-12T13:18:53+00:00",
-  "finished_at": "2026-08-12T13:25:28+00:00",
-  "seconds": 394.7694277080009,
+  "started_at": "2026-08-30T12:56:50+00:00",
+  "finished_at": "2026-08-30T13:03:53+00:00",
+  "seconds": 423.2537785000022,
   "ok": true,
   "sources": [
     {
@@ -27,17 +27,17 @@
     },
     {
       "source": "oportunitati",
-      "files": 762,
-      "bytes": 32469243,
-      "rows": 5355,
+      "files": 867,
+      "bytes": 38536978,
+      "rows": 5395,
       "error": null
     }
   ],
   "projects": 22343,
-  "projects_new": 22160,
-  "calls": 5355,
-  "calls_new": 123,
-  "calls_active": 155,
-  "software": 963,
+  "projects_new": 10835,
+  "calls": 5395,
+  "calls_new": 45,
+  "calls_active": 161,
+  "software": 965,
   "errors": []
 }

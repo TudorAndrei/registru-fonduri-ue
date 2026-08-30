@@ -59,4 +59,8 @@ EXPOSE 3000
 # În modul `prod`, Reflex servește interfața și partea de server pe același
 # port — altfel refuză să pornească. Un singur port simplifică și Coolify.
 # Interfața se compilează la prima pornire; de aceea `start-period` este lung.
-CMD ["reflex", "run", "--env", "prod", "--frontend-port", "3000", "--backend-port", "3000"]
+#
+# Nu direct `reflex run`: pe Linux, granian ar porni lucrătorii cu `fork`,
+# care copiază bazinul de fire Polars al părintelui într-o stare moartă.
+# `dashboard/serve.py` forțează `spawn` și abia apoi pornește Reflex.
+CMD ["python", "dashboard/serve.py"]
